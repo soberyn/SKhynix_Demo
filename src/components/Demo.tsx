@@ -262,6 +262,10 @@ export function Demo() {
           </p>
         </div>
       </header>
+      <p className={s.demoNotice}>
+        <b>공개용 데모입니다.</b> 개인 프로젝트(세무 판단 시스템)에서 얻은 ‘판단구조’ 아이디어를 가상·단순화 시나리오로 다시 구현한
+        것이며, 실제 시스템의 코드·규칙·구조가 아닙니다. 아래 정답률도 이 데모의 문제로 측정한 결과입니다.
+      </p>
 
       <div className={s.scenarioBar} role="tablist" aria-label="시나리오">
         {SCENARIOS.map((sc, i) => (

@@ -63,7 +63,8 @@ export function BenchmarkPanel({
       ) : (
         <>
           <p className={s.benchHow}>
-            문제 <b>{measured.length}개</b>를 각각 <b>{perCase}번씩</b>, 방식마다 모두 <b>{total("llmOnly", (x) => x.runs)}번</b> 풀었습니다.
+            문제 <b>{measured.length}개</b>를 각각 <b>{perCase}번씩</b>, 방식마다 모두 <b>{total("llmOnly", (x) => x.runs)}번</b> 풀었습니다. 사용
+            모델: <b>{data.model}</b> (경량·저성능 모델).
           </p>
           <div className={s.benchSummary}>
             <div className={`${s.benchStat} ${s.compareLLM}`}>
@@ -145,7 +146,9 @@ export function BenchmarkPanel({
 
       {measured.length > 0 && (
         <p className={s.muted}>
-          측정: {data.model || "—"} · {data.updatedAt ? data.updatedAt.slice(0, 10) : "—"} · 제공사 기본 샘플링 설정. LLM 단독에게는 판단 단계
+          측정 모델: <b>{data.model || "—"}</b> (Google의 경량·저성능 모델) · {data.updatedAt ? data.updatedAt.slice(0, 10) : "—"} · 제공사 기본 샘플링 설정.
+          더 좋은 모델에서는 LLM 단독의 오답률이 낮아질 수 있지만, 계산과 조건 적용을 확률적으로 처리하는 한 문제가 복잡해질수록 오답
+          가능성은 남습니다. 판단구조는 모델 성능과 관계없이 규칙으로 정할 수 있는 판단을 항상 같은 결과로 처리합니다. LLM 단독에게는 판단 단계
           목록만 알려 주고 단계별 판단을 함께 보고하게 했습니다(계산과 결론은 스스로). LLM + 규칙에서도 LLM 단계는 틀릴 수 있으며, 틀리면
           위 표에 그대로 나타납니다. 결과는 관찰된 그대로입니다.
         </p>

@@ -1,106 +1,103 @@
-# 판단구조 실행 데모 (Heterogeneous Judgment Runtime)
+# 판단구조 실행 데모
 
-A minimal demonstration of explicit judgment structure with Rule, Code and LLM resolvers. The UI is in Korean.
+판단구조를 명시하고, 판단마다 **규칙**과 **LLM** 중 알맞은 방법을 써서, 과정을 추적하고 부분만 고칠 수 있게 하는 최소 데모입니다.
 
-> Simplified hypothetical manufacturing scenario for demonstrating the architecture. It does not represent an actual SK hynix process or SOP.
+> **공개용 데모입니다.** 개인 프로젝트(세무 판단 시스템)에서 얻은 ‘판단구조’ 아이디어를 가상·단순화 시나리오로 다시 구현한 것이며,
+> 실제 시스템의 코드·규칙·구조가 아닙니다. 아래 정답률도 이 데모의 문제로 측정한 결과입니다.
+> 세무 시나리오는 공개된 1세대1주택 비과세 요건을 설명용으로 단순화한 가상 사례로, 세무 자문이 아닙니다.
+> 설비 시나리오는 가상의 사례이며 SK하이닉스의 실제 공정이나 SOP가 아닙니다.
 
-## Purpose
+## 가설
 
-An interactive proof-of-concept for one hypothesis, built for an application portfolio. It is not a product or a general workflow framework.
+복잡한 판단 전체를 LLM의 암묵적 추론에 맡기기보다, **판단구조와 의존관계를 명시**하고 판단마다 알맞은 방법(규칙 또는 LLM)을
+배치하면, 정확한 계산과 LLM의 해석을 하나의 **검토 가능한 판단과정**으로 결합할 수 있다.
 
-## Hypothesis
+세 가지 조건으로 확인합니다.
 
-Instead of leaving a complex decision to an LLM's implicit reasoning, make the judgment structure and its dependencies explicit in the system, and give each judgment a suitable resolver. Deterministic computation and LLM reasoning then combine into one reviewable judgment process.
+1. **판단구조 명시** — 반드시 거쳐야 할 판단과 의존관계를 그래프(DAG)로 명시
+2. **규칙과 LLM의 분리** — 조건·계산처럼 정해진 판단은 규칙이, 글을 읽어야 하는 판단만 LLM이
+3. **추적 가능성** — 판단마다 본 입력, 방법, 결과, 근거를 기록
 
-It demonstrates three conditions:
+## 무엇을 비교하나
 
-1. **Explicit Judgment Structure** — required judgments and dependencies are declared in a DAG.
-2. **Deterministic / LLM Separation** — rules and calculations are not delegated to the LLM; the LLM handles only unstructured evidence.
-3. **Traceability** — every node records its input, method, result and evidence.
+같은 입력을 두 방식으로 판단합니다.
 
-## Architecture
+- **LLM 단독** — 입력 전체와 정책을 LLM 한 번에 주고 결론을 받음
+- **LLM + 규칙** — 판단구조(DAG)를 따라 규칙과 LLM을 나눠 실행
 
-```
-Input → Judgment DAG → Resolver dispatch → RULE / CODE / LLM → Structured node result → Final decision → Execution trace
-```
+각 입력에는 정답이 있습니다(규칙 + 준비된 기록의 의도된 해석으로 계산). 화면은 두 방식의 결론과 **판단 단계별 결과**를 정답과
+나란히 보여줍니다. 비교를 위해 LLM 단독에게도 단계별 판단을 함께 보고하게 했습니다(계산과 결론은 스스로).
 
-**Judgment Structure ≠ Judgment Method.** The DAG defines *what* must be judged and what it depends on; the resolver defines *how* each judgment is evaluated. The LLM is one resolver, not the controller.
+## 정답률 측정 결과
 
-| Path | Role |
-|---|---|
-| `src/core/` | Engine: graph validation, execution (READY/BLOCKED propagation, concurrent independent nodes), resolvers, trace |
-| `src/scenario/equipment.ts` | Demo DAG, policy table, CODE functions, example input |
-| `src/app/api/judge` | Evaluates one LLM node server-side (API key never reaches the browser) |
-| `src/app/api/llm-only` | LLM Only comparison mode |
-| `src/components/` | UI |
+여러 조건이 얽힌 문제를 시나리오마다 4개 만들고, 문제마다 두 방식을 **실제 LLM으로 10번씩** 풀게 했습니다.
+모델은 **Google의 경량(저성능) 모델 `gemini-3.1-flash-lite`**(무료 사용량 기준으로 선택), 제공사 기본 샘플링 설정, 2026-09-26 측정.
 
-## Scenarios
+| 시나리오 | LLM + 규칙 | LLM 단독 |
+|---|---|---|
+| 세무 (문제 4개 × 10번) | **40/40** | 25/40 (63%) |
+| 설비 (문제 4개 × 10번) | **40/40** | 30/40 (75%) |
 
-The same engine and screen run two scenarios:
+LLM 단독이 틀린 방식 (자세한 풀이는 화면과 `src/scenario/benchmark.json`):
 
-1. **세무: 1세대1주택 비과세 판단** — the original problem domain, simplified to public-law level (보유기간, 거주요건, 고가주택 기준). Not tax advice; special cases are not modelled; not the author's actual system or rules.
-2. **설비: 챔버 압력 판단** — a hypothetical equipment case, showing the same structure in another domain.
+- 세무 문제 1 — 세 구간으로 끊긴 거주기간을 약 670일로 계산(실제 916일) → 10번 모두 결론 오답
+- 세무 문제 3 — 결론은 10번 모두 맞았지만 거주 일수 단계는 10번 모두 오답 (다른 조건 덕에 결론만 맞음)
+- 세무 문제 4 — 거주요건이 없는 비조정지역인데 거주요건을 적용 → 10번 중 5번 오답
+- 설비 문제 2 — 범위 안 알람 4회를 "5회 이상"으로 셈 → 10번 모두 결론 오답
 
-Two judgment methods: **규칙** (deterministic: conditions, tables, calculations) and **LLM** (reads unstructured text). In each scenario the LLM reads exactly one free-text field (거주 기록 / 정비 기록).
+모델 성능에 대해: 더 좋은 모델에서는 LLM 단독의 오답률이 낮아질 수 있습니다. 그러나 LLM이 날짜 계산·횟수 세기·조건 적용을
+확률적으로 처리하는 한, 문제가 복잡해질수록 오답 가능성은 남습니다. 판단구조는 모델 성능과 관계없이 규칙으로 정할 수 있는 판단을
+항상 같은 결과로 처리하고, LLM에는 글을 읽는 판단만 맡깁니다.
 
-Every run judges the same input two ways — **LLM 단독** (one LLM call decides everything) and **LLM + 규칙** — and shows both conclusions side by side, with where they diverge. Missions let the user change one thing (a date, a rule value, a record, or a human override) and see what changed, what was reused and how many LLM calls were made.
+한계: 문제 수가 적고 경량 모델 하나로 잰 결과입니다. LLM이 항상 틀린다는 뜻이 아니며, LLM + 규칙도 LLM 단계에서는 틀릴 수
+있습니다(이번 측정에서는 틀리지 않았음). 결과는 관찰된 그대로 기록했습니다.
 
-## How to run
+## 시나리오
+
+| | 세무: 1세대1주택 비과세 판단 | 설비: 챔버 압력 판단 |
+|---|---|---|
+| 역할 | 원래 문제 도메인 (단순화) | 같은 구조를 다른 도메인에 적용 |
+| 규칙 단계 | 세대 보유 주택 수, 보유기간, 거주요건 대상, 통산 거주 일수, 고가주택 기준, 거주요건 충족, 과세 여부 | 압력 이상, 알람 반복(3일치 알람 집계), 설비 조치 |
+| LLM 단계 | 실거주를 부정하는 정황 (생활 기록을 읽음) | 센서 고장 근거 (정비 기록을 읽음) |
+
+## 구조를 나눴을 때의 효용 (화면의 ‘직접 체험해 보기’)
+
+- **변경 추적** — 입력을 바꾸면 결론이 왜 바뀌었는지 한 단계로 추적되고, 입력이 그대로인 판단은 재사용 (LLM 호출 0회)
+- **사람의 판단 지정** — 틀렸다고 보는 판단 하나만 사람이 고치면, 그 결과에 의존하는 단계만 다시 계산
+- **규칙 변경** — 규칙 값을 바꾸면 그 규칙을 쓰는 단계에만 반영
+- **실패 통제** — LLM 출력이 형식을 어기면 그 단계만 실패로 표시되고, 의존하는 단계는 차단
+
+## 로컬에서 실행하기
 
 ```bash
 npm install
-cp .env.example .env.local   # optional: add an LLM key for live LLM and LLM Only mode
+cp .env.example .env.local   # 선택: 실제 LLM을 쓰려면 키 입력 (없으면 기록된 실제 응답으로 동작)
 npm run dev
 ```
 
-Direct links: `/?s=tax&run=example`, `/?s=equipment&run=mission-policy`, `/?s=tax&run=failure`.
+- 실시간 LLM 호출이 안 되면 **기록된 실제 LLM 응답**(모델·날짜 표시)을 보여 줍니다. 준비된 예시 기록과 문제·미션 입력은 키 없이 모두 동작합니다.
+- 바로 열기: `/?s=tax&run=problem-p1`, `/?s=equipment&run=problem-p2`, `/?s=tax&run=failure`
 
-Without an API key, the LLM node uses a precomputed answer **for the unmodified example only**, labelled `준비된 예시 답변`. Modified input then fails honestly at the LLM node.
-
-## LLM answers: live, recorded, prepared
-
-The AI step (and LLM Only mode) shows where each answer came from:
-
-| Label | Meaning |
+| 명령 | 내용 |
 |---|---|
-| 실제 AI 응답 | Live call made now (needs `LLM_*` on the server) |
-| 기록된 실제 AI 응답 · model · date | A real model answer saved earlier with `npm run record`, shown when no live LLM is available |
-| 준비된 예시 답변 | Written for the demo (not model output); last resort for the prepared maintenance-record variants |
+| `npm test` | 테스트 68개 (LLM 없이 실행): 그래프 검증, 실행 순서·병렬, 규칙·LLM 판단, 형식 오류, 실패 전파, 재사용, 사람 지정, 각 시나리오의 정책·경계값·정답 |
+| `npm run benchmark -- --runs 10` | 정답률 측정 (실제 LLM 필요, 이어서 측정 가능) |
+| `npm run record` | 실제 LLM 응답 기록 |
+| `npx tsx scripts/summarize-benchmark.ts` | 측정 결과 요약 |
 
-Record real answers once (server running with a key):
+## 구성
 
-```bash
-npm run dev -- -p 3100
-npm run record        # writes src/scenario/recorded.json — review it before deploying
-```
+| 경로 | 내용 |
+|---|---|
+| `src/core/` | 판단 엔진: 그래프 검증, 실행(의존관계에 따른 실행·차단, 병렬), 규칙·LLM 판단, 재사용, 사람 지정, 판단과정 기록 |
+| `src/scenario/` | 시나리오(세무·설비), 정답 계산, 기록된 응답, 측정 결과 |
+| `src/app/api/` | LLM 호출(서버에서만, 키는 브라우저로 전달되지 않음) |
+| `src/components/` | 화면 |
+| `docs/decision-log.md` | 설계 결정 기록 (기각·수정한 결정 포함) |
+| `docs/screenshots/` | 화면 캡처 |
 
-## Deployment (Vercel)
+## AI 활용 과정
 
-- The API key lives only in Vercel environment variables (`LLM_PROVIDER` = `gemini` | `anthropic` | `openai`, `LLM_API_KEY`, `LLM_MODEL`); it never reaches the browser.
-- Set a monthly spending limit in the provider console. The endpoints already allow only the demo's fixed question, cap input length and rate-limit per IP.
-- Visits: `<Analytics />` (Vercel Web Analytics, cookieless) counts page views; enable it in the Vercel project. Link the portfolio PDF to **`/p`** (same demo) so portfolio-originated visits are counted separately. Custom events: `mission`, `run`, `failure_example` (availability depends on the Vercel plan).
-
-## Tests
-
-```bash
-npm test
-```
-
-32 tests with a mock LLM (no API needed): validation (duplicate, missing dependency, cycle path, unknown resolver), ordering, concurrency, RULE/CODE/LLM resolvers, malformed LLM output, resolver failure, downstream blocking, trace, every row of the demo policy.
-
-Measurement against a live LLM (§9-1 of the spec): `npm run measure -- --runs 10` → `docs/measurements.md`.
-
-## Limitations
-
-- Toy scenario with four nodes; not a workflow engine (no persistence, retries, distributed execution, authorization).
-- The rate limit is in-memory per server instance.
-- The fallback answer was authored for the demo, not recorded from a model.
-- The comparison is about architecture, not a claim that the structured mode is always more accurate.
-
-## AI-assisted development process
-
-Built with an AI coding assistant. I defined the hypothesis, the three conditions, the constraints and the non-goals; the assistant proposed designs, wrote code and tests, and I reviewed the results against the original conditions. Decisions, including rejected and corrected ones, are in [`docs/decision-log.md`](docs/decision-log.md).
-
-## Live demo URL
-
-_Not deployed yet._
+AI 코딩 도구(Claude Code)와 함께 만들었습니다. 저는 가설과 세 조건, 범위와 제약을 정하고 결과가 원래 목적에 맞는지 검토했으며,
+방향을 여러 번 바꿨습니다(결론 비교만으로는 효과를 증명할 수 없다고 보고 정답률 측정으로 전환, 조건 하나씩 바꾼 문제 대신 조건이
+얽힌 문제로 재구성 등). 기각하거나 수정한 결정과 그 이유는 [`docs/decision-log.md`](docs/decision-log.md)에 있습니다.
