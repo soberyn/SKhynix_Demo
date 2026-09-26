@@ -7,9 +7,6 @@ import s from "./demo.module.css";
 
 const labelOf = (graph: JudgmentGraph, id?: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
 
-const W = 236;
-const H = 132;
-const GAP_X = 64;
 const GAP_Y = 24;
 const PAD = 12;
 
@@ -27,6 +24,10 @@ export function DagView({
   const columns: string[][] = [];
   for (const n of graph.nodes) (columns[levels[n.id]] ??= []).push(n.id);
 
+  // Narrower cards when the graph is deeper, so three levels still fit next to the decision panel.
+  const H = columns.length >= 3 ? 152 : 132;
+  const W = columns.length >= 3 ? 178 : 236;
+  const GAP_X = columns.length >= 3 ? 34 : 64;
   const tallest = Math.max(...columns.map((c) => c.length));
   const height = tallest * H + (tallest - 1) * GAP_Y + PAD * 2;
   const width = columns.length * W + (columns.length - 1) * GAP_X + PAD * 2;

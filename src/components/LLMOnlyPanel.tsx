@@ -1,9 +1,14 @@
+import type { Scenario } from "@/scenario/types";
 import type { LLMOnlyResult } from "./ResultCompare";
 import { SourceTag } from "./bits";
 import s from "./demo.module.css";
 
 /** The "LLM 단독" tab, laid out like the "LLM + 규칙" tab: structure · final decision · process. */
-export function LLMOnlyPanel({ result, running }: { result: LLMOnlyResult | null; running: boolean }) {
+export function LLMOnlyPanel({ scenario, result, running }: { scenario: Scenario; result: LLMOnlyResult | null; running: boolean }) {
+  const ruleNodes = scenario
+    .buildGraph(scenario.defaultSettings)
+    .nodes.filter((n) => n.dependencies.length === 0)
+    .map((n) => n.label.replace(/\?$/, ""));
   return (
     <div className={s.tabGrid}>
       <div className={s.tabCol}>
@@ -11,16 +16,16 @@ export function LLMOnlyPanel({ result, running }: { result: LLMOnlyResult | null
         <div className={s.llmOnlyFlow}>
           <div className={s.flowBox}>
             입력 전체
-            <div className={s.muted}>압력 · 기준값 · 판단 시각 · 알람 이력 · 정비 기록 + 정책 문장</div>
+            <div className={s.muted}>{scenario.fields.map((f) => f.label).join(" · ")} + 정책 문장</div>
           </div>
           <div className={s.flowArrow}>↓</div>
           <div className={`${s.flowBox} ${s.flowLLM}`}>
             <span className={`${s.badge} ${s.badge_LLM}`}>✦ LLM</span>
             <div>한 번의 호출이 모든 판단을 함께 수행</div>
-            <div className={s.muted}>압력 비교 · 알람 횟수 세기 · 정비 기록 해석 · 정책 적용</div>
+            <div className={s.muted}>{ruleNodes.join(" · ")} · 정책 적용</div>
           </div>
           <div className={s.flowArrow}>↓</div>
-          <div className={s.flowBox}>조치 + 설명 한 덩어리</div>
+          <div className={s.flowBox}>결론 + 설명 한 덩어리</div>
         </div>
         <p className={s.caption}>
           판단이 나뉘어 있지 않아서, 무엇을 어떤 순서로 확인했는지는 LLM 내부에 있습니다. 같은 입력·같은 정책을 쓰며, LLM이

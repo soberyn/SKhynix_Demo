@@ -74,7 +74,7 @@ export function resolveRule(config: RuleConfig, ctx: ResolveContext, functions: 
   const row = config.rows[index];
   return {
     result: row.then,
-    explanation: `정책 표 ${index + 1}행과 일치 → ${row.then}`,
+    explanation: `정책 표 ${index + 1}행과 일치 → ${typeof row.then === "boolean" ? yesNo(row.then) : row.then}`,
     inputs,
   };
 }

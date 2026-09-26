@@ -1,8 +1,9 @@
 // Simplified hypothetical manufacturing scenario for demonstrating the architecture.
 // It does not represent an actual SK hynix process or SOP.
 
-import type { LLMJudgment, RuleFunctions } from "@/core/resolvers";
+import type { RuleFunctions } from "@/core/resolvers";
 import type { JudgmentGraph } from "@/core/types";
+import type { Draft, Mission, NotePreset, Scenario, Settings } from "./types";
 
 export const DISCLAIMER =
   "구조를 보여주기 위해 단순화한 가상의 설비 시나리오입니다. 실제 SK하이닉스의 공정이나 SOP를 나타내지 않습니다.";
@@ -36,13 +37,6 @@ export const EXAMPLE_INPUT: EquipmentInput = {
  * used only when no live LLM is available and only for this exact text. The prepared answers were written for
  * the demo (not recorded from a model) and are always labelled "준비된 예시 답변" in the UI.
  */
-export interface NotePreset {
-  id: string;
-  label: string;
-  text: string;
-  prepared: LLMJudgment;
-}
-
 export const NOTE_PRESETS: NotePreset[] = [
   {
     id: "calibrated",
@@ -108,14 +102,14 @@ export const ACTIONS = {
 } as const;
 
 /** Rule values a user can change in the demo (policy change experience). */
-export interface PolicySettings {
+export interface PolicySettings extends Settings {
   threshold: number;
   windowHours: number;
 }
 
 export const DEFAULT_SETTINGS: PolicySettings = { threshold: 3, windowHours: 24 };
 
-export function buildEquipmentGraph({ threshold, windowHours }: PolicySettings): JudgmentGraph {
+export function buildEquipmentGraph({ threshold, windowHours }: Settings): JudgmentGraph {
   return {
   decision_node: "equipment_action",
   nodes: [
@@ -176,25 +170,13 @@ export function buildEquipmentGraph({ threshold, windowHours }: PolicySettings):
 export const EQUIPMENT_GRAPH = buildEquipmentGraph(DEFAULT_SETTINGS);
 
 /** The demo policy in plain language. Given verbatim to the LLM-only mode so both modes see the same rules. */
-export function policyText({ threshold, windowHours }: PolicySettings): string {
+export function policyText({ threshold, windowHours }: Settings): string {
   return [
     `- 챔버 압력이 기준값을 넘지 않으면: ${ACTIONS.CONTINUE}`,
     `- 압력이 기준값을 넘지만, 판단 시각 이전 ${windowHours}시간 동안 압력 경고가 ${threshold}회 미만이면: ${ACTIONS.MONITOR}`,
     `- 압력이 기준값을 넘고, 압력 경고가 ${threshold}회 이상이며, 정비 기록에 압력 센서 고장의 충분한 근거가 있으면: ${ACTIONS.CHECK_SENSOR}`,
     `- 압력이 기준값을 넘고, 압력 경고가 ${threshold}회 이상이며, 센서 고장의 충분한 근거가 없으면: ${ACTIONS.HOLD}`,
   ].join("\n");
-}
-
-/** Keeps user-entered rule values in a sane range. */
-export function clampSettings(raw: Partial<Record<keyof PolicySettings, unknown>> | undefined): PolicySettings {
-  const int = (v: unknown, lo: number, hi: number, d: number) => {
-    const n = Math.round(Number(v));
-    return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
-  };
-  return {
-    threshold: int(raw?.threshold, 1, 20, DEFAULT_SETTINGS.threshold),
-    windowHours: int(raw?.windowHours, 1, 168, DEFAULT_SETTINGS.windowHours),
-  };
 }
 
 // ---------- Rule functions (deterministic) ----------
@@ -243,8 +225,82 @@ export const EQUIPMENT_FUNCTIONS: RuleFunctions = {
 
 // ---------- Fallback ----------
 
-/** The prepared answer for exactly this maintenance text, if one exists. */
-export function preparedAnswer(evidence: Record<string, string>): LLMJudgment | undefined {
-  const note = evidence["input.maintenance_note"]?.trim();
-  return NOTE_PRESETS.find((p) => p.text === note)?.prepared;
-}
+// ---------- Scenario ----------
+
+const EXAMPLE_DRAFT: Draft = {
+  values: {
+    pressure: EXAMPLE_INPUT.pressure,
+    pressure_limit: EXAMPLE_INPUT.pressure_limit,
+    evaluation_time: EXAMPLE_INPUT.evaluation_time,
+  },
+  lines: { alarm_history: EXAMPLE_INPUT.alarm_history.split("\n").map((text) => ({ text, on: true })) },
+  notes: { maintenance_note: { presetId: NOTE_PRESETS[0].id, custom: "" } },
+  settings: DEFAULT_SETTINGS,
+};
+
+const MISSIONS: Mission[] = [
+  {
+    id: "pressure",
+    title: "압력이 정상으로 돌아오면?",
+    what: "챔버 압력을 9.5 Pa로 바꿨습니다.",
+    apply: (d) => ({ draft: { ...d, values: { ...d.values, pressure: "9.5" } } }),
+    benefit: "결론이 왜 바뀌었는지 ‘압력 이상’ 한 단계로 바로 추적됩니다.",
+    llmOnly: "LLM 단독이라면 전체를 다시 묻고, 새 설명문을 이전 설명과 비교해 무엇이 바뀌었는지 직접 찾아야 합니다.",
+  },
+  {
+    id: "override",
+    title: "엔지니어가 센서를 의심한다면?",
+    what: "‘센서 고장 근거가 있는가?’를 사람이 ‘예’로 지정했습니다.",
+    apply: (d) => ({ draft: d, overrides: { sensor_fault_evidence: { result: true, note: "엔지니어가 현장 확인 후 ‘예’로 지정" } } }),
+    benefit: "LLM의 판단 하나만 사람이 고쳤고, 그 결과에 의존하는 조치만 다시 정해졌습니다. 누가 무엇을 고쳤는지 판단과정에 남습니다.",
+    llmOnly: "LLM 단독이라면 LLM의 결론 전체에 반박하고, 새 결론이 내 의견을 제대로 반영했는지 다시 읽어 확인해야 합니다.",
+  },
+  {
+    id: "policy",
+    title: "알람 기준이 5회로 바뀌면?",
+    what: "규칙 값 ‘알람 기준 횟수’를 3회 → 5회로 바꿨습니다.",
+    apply: (d) => ({ draft: { ...d, settings: { ...d.settings, threshold: 5 } } }),
+    benefit: "바뀐 규칙 값은 그 값을 쓰는 규칙 단계 하나에만 반영됩니다. 같은 입력이면 언제나 같은 결과이고, LLM은 부르지 않았습니다.",
+    llmOnly: "LLM 단독이라면 정책 문장을 고쳐 다시 묻고, 알람 횟수를 정확히 세어 새 기준을 적용했는지 설명문을 읽어 확인해야 합니다.",
+  },
+  {
+    id: "note",
+    title: "정비 기록 내용이 다르면?",
+    what: "정비 기록을 ‘센서 이상 정황 있음’으로 바꿨습니다.",
+    apply: (d) => ({ draft: { ...d, notes: { ...d.notes, maintenance_note: { presetId: "suspect", custom: "" } } } }),
+    benefit: "LLM 단계는 바뀐 정비 기록을 읽는 그 한 단계만 다시 실행되었고, 압력·알람 판단은 재사용되었습니다.",
+    llmOnly: "LLM 단독이라면 기록 하나만 바뀌어도 모든 조건을 처음부터 다시 판단합니다.",
+  },
+];
+
+export const EQUIPMENT_SCENARIO: Scenario = {
+  id: "equipment",
+  name: "설비: 챔버 압력 판단",
+  role: "같은 구조를 다른 도메인에 적용",
+  disclaimer: DISCLAIMER,
+  fields: [
+    { kind: "number", key: "pressure", label: "챔버 압력", unit: "Pa", slider: { min: 5, max: 15, step: 0.1 } },
+    { kind: "number", key: "pressure_limit", label: "압력 기준값", unit: "Pa" },
+    { kind: "text", key: "evaluation_time", label: "판단 시각", hint: "YYYY-MM-DD HH:MM" },
+    {
+      kind: "lines",
+      key: "alarm_history",
+      label: "알람 이력",
+      hint: "체크한 알람만 반영",
+      add: { label: "+ 압력 경고 추가", placeholder: "2026-09-26 16:30", template: (v) => `${v.trim()} 압력 경고` },
+    },
+    { kind: "note", key: "maintenance_note", label: "정비 기록", hint: "LLM이 읽는 유일한 입력", presets: NOTE_PRESETS },
+  ],
+  settings: [
+    { key: "threshold", label: "알람 기준 횟수", unit: "회 이상", min: 1, max: 20, step: 1 },
+    { key: "windowHours", label: "알람 집계 범위", unit: "시간", min: 1, max: 168, step: 1 },
+  ],
+  defaultSettings: DEFAULT_SETTINGS,
+  buildGraph: buildEquipmentGraph,
+  functions: EQUIPMENT_FUNCTIONS,
+  policyText,
+  actions: Object.values(ACTIONS),
+  llmOnlyRole: "You decide the action for a piece of equipment by applying the given policy to the given data.",
+  exampleDraft: EXAMPLE_DRAFT,
+  missions: MISSIONS,
+};

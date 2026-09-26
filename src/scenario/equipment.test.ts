@@ -9,10 +9,10 @@ import {
   EQUIPMENT_GRAPH,
   EXAMPLE_INPUT,
   buildEquipmentGraph,
-  clampSettings,
+  EQUIPMENT_SCENARIO,
   NOTE_PRESETS,
-  preparedAnswer,
 } from "./equipment";
+import { clampSettings, preparedFor } from "./types";
 
 const llmSays = (decision: boolean) => new MockLLM(() => ({ decision, reason: "mock reason", evidence_quotes: [] }));
 const run = (input: Record<string, string>, sensorFault = false) =>
@@ -71,8 +71,8 @@ describe("equipment scenario", () => {
   });
 
   it("prepared answers exist only for the prepared maintenance texts", () => {
-    for (const p of NOTE_PRESETS) expect(preparedAnswer({ "input.maintenance_note": p.text })).toBe(p.prepared);
-    expect(preparedAnswer({ "input.maintenance_note": "직접 쓴 기록" })).toBeUndefined();
+    for (const p of NOTE_PRESETS) expect(preparedFor(EQUIPMENT_SCENARIO, p.text)).toBe(p.prepared);
+    expect(preparedFor(EQUIPMENT_SCENARIO, "직접 쓴 기록")).toBeUndefined();
     expect(NOTE_PRESETS.map((p) => p.prepared.decision)).toEqual([false, true, false]);
   });
 
@@ -154,7 +154,7 @@ describe("user benefits: change tracking, human override, policy change", () => 
   });
 
   it("clamps user-entered rule values", () => {
-    expect(clampSettings({ threshold: "0", windowHours: 999 })).toEqual({ threshold: 1, windowHours: 168 });
-    expect(clampSettings(undefined)).toEqual(DEFAULT_SETTINGS);
+    expect(clampSettings(EQUIPMENT_SCENARIO, { threshold: "0", windowHours: 999 })).toEqual({ threshold: 1, windowHours: 168 });
+    expect(clampSettings(EQUIPMENT_SCENARIO, undefined)).toEqual(DEFAULT_SETTINGS);
   });
 });

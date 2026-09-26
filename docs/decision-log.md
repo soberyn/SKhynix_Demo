@@ -145,3 +145,25 @@ Format: Problem · Hypothesis · AI suggestion · Alternatives · Decision · Re
 
 - **Observation**: For the "알람 기준 5회" mission, `gemini-3.1-flash-lite` in LLM-only mode stated that there were **5** pressure warnings (there are 4) and chose "설비 보류". LLM + 규칙 counts 4 with a rule and chooses "모니터링 강화". This happened in the recording run and again in a live run.
 - **How it is presented**: As a recorded real answer with model and date, with no prompt changes to provoke it. It illustrates why deterministic judgments (counting) are not delegated to the LLM; it is not a claim that LLMs always fail — two observations with one lightweight model.
+
+## 22. Two scenarios: tax (the original problem) and equipment (transfer)
+
+- **Decision (user)**: Add a tax scenario — simplified 1세대1주택 비과세 — so reviewers see the real problem domain; keep the equipment scenario to show the structure transfers to another domain. Tax content stays at public-law level; the author's own system, rules and rule representation are not published.
+- **Implementation**: A `Scenario` definition (inputs, rule values, graph, policy text, missions, prepared texts). The input panel, the API (`scenario` parameter), recordings (keyed by scenario) and scripts are generic over it; the engine is unchanged.
+- **Tax graph**: 1세대 1주택 · 보유기간 (date calculation) · 거주요건 적용 대상 · 2년 거주 근거 (LLM, reads only the residence records) · 고가주택 기준 → 거주요건 충족 (table) → 과세 여부 (table). 21 tests cover the boundaries (exactly 2 years vs one day short, price equal to the threshold), every policy row and every mission.
+
+## 23. A prepared record the LLM could not answer
+
+- **Problem**: The residence variant "해외 파견 후 재전입" said "이후 양도일까지 거주", but the LLM step reads only the residence records and does not know the transfer date. The recorded answer was "근거 부족" — a flaw in the input, not in the model.
+- **Fix**: The record states the period explicitly ("2026-09 현재까지"). Re-recorded: the LLM summed 9 + 22 months = 31 months → 충족. Obsolete recordings are removed with `npm run prune`.
+
+## 24. Observed disagreements (recorded and live, not provoked)
+
+- **Tax, earlier transfer date (1년 11개월 보유)**: LLM-only returned "비과세". In one live run its own explanation computed "2년 미만" and even ended with "'과세 — 보유기간 요건 미충족'이 최종 결과" while the action field said "비과세". LLM + rules: 과세 — 보유기간 요건 미충족.
+- **Equipment, alarm threshold 5**: LLM-only counted 5 warnings (there are 4) in three separate runs.
+- Presented as observed, with model and date; not a claim that LLMs always fail.
+
+## 25. Human override is not an LLM-only error
+
+- **Problem**: In the override missions, only LLM + rules receives the person's decision, so the two conclusions differ by construction. The screen showed "⚠ 결론이 다릅니다", which would misattribute the difference.
+- **Fix**: When a human decided a node, the comparison bar explains that the override applies only to LLM + rules and that the difference is not an LLM-only mistake.

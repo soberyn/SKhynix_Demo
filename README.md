@@ -34,20 +34,16 @@ Input → Judgment DAG → Resolver dispatch → RULE / CODE / LLM → Structure
 | `src/app/api/llm-only` | LLM Only comparison mode |
 | `src/components/` | UI |
 
-## Demo scenario
+## Scenarios
 
-Two judgment methods: **규칙** (deterministic: conditions, tables, calculations) and **LLM** (reads unstructured text).
+The same engine and screen run two scenarios:
 
-| Node | Method | Judgment |
-|---|---|---|
-| 압력 이상인가? | 규칙 | `pressure > pressure_limit` |
-| 알람이 반복되는가? | 규칙 (function) | ≥ N pressure warnings within the window (filters type and time) |
-| 센서 고장 근거가 있는가? | LLM | Reads only the maintenance records (structured output: decision, confidence, reason, evidence quotes) |
-| 설비 조치 | 규칙 (table) | Policy table over the three results |
+1. **세무: 1세대1주택 비과세 판단** — the original problem domain, simplified to public-law level (보유기간, 거주요건, 고가주택 기준). Not tax advice; special cases are not modelled; not the author's actual system or rules.
+2. **설비: 챔버 압력 판단** — a hypothetical equipment case, showing the same structure in another domain.
 
-Every run judges the same input two ways — **LLM 단독** (one LLM call decides everything) and **LLM + 규칙** — and shows both conclusions side by side, with where they diverge.
+Two judgment methods: **규칙** (deterministic: conditions, tables, calculations) and **LLM** (reads unstructured text). In each scenario the LLM reads exactly one free-text field (거주 기록 / 정비 기록).
 
-Example result: **설비 보류 — 엔지니어 검토 필요** (HOLD). A failure example (simulated schema-violating LLM output) shows the failing node and the BLOCKED decision.
+Every run judges the same input two ways — **LLM 단독** (one LLM call decides everything) and **LLM + 규칙** — and shows both conclusions side by side, with where they diverge. Missions let the user change one thing (a date, a rule value, a record, or a human override) and see what changed, what was reused and how many LLM calls were made.
 
 ## How to run
 
@@ -57,7 +53,7 @@ cp .env.example .env.local   # optional: add an LLM key for live LLM and LLM Onl
 npm run dev
 ```
 
-Direct links: `/?run=example`, `/?run=failure`.
+Direct links: `/?s=tax&run=example`, `/?s=equipment&run=mission-policy`, `/?s=tax&run=failure`.
 
 Without an API key, the LLM node uses a precomputed answer **for the unmodified example only**, labelled `준비된 예시 답변`. Modified input then fails honestly at the LLM node.
 

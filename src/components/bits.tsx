@@ -7,7 +7,7 @@ const RESOLVER_NAME: Record<ResolverType, string> = { RULE: "규칙", LLM: "LLM"
 
 export const RESOLVER_MEANING: Record<ResolverType, string> = {
   RULE: "정해진 조건·계산으로 판단 — 같은 입력이면 항상 같은 결과",
-  LLM: "LLM이 글(정비 기록)을 읽고 판단",
+  LLM: "LLM이 글(기록)을 읽고 판단",
 };
 
 export function ResolverBadge({ type }: { type: ResolverType }) {

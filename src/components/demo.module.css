@@ -1233,7 +1233,7 @@
 
 .tabGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 18px;
   align-items: start;
 }
@@ -1273,4 +1273,70 @@
   background: var(--bg);
   color: var(--ink-2);
   font-size: 12.5px;
+}
+
+/* ---------- scenario switcher ---------- */
+
+.scenarioBar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+@media (max-width: 800px) {
+  .scenarioBar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scenarioCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  text-align: left;
+  cursor: pointer;
+}
+
+.scenarioCard:hover {
+  border-color: var(--ink);
+}
+
+.scenarioOn {
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.scenarioNo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+}
+
+.scenarioName {
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.scenarioRole {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.segOnPlain {
+  padding: 4px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--run-bg);
+  color: var(--run);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }

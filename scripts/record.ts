@@ -1,29 +1,38 @@
 // Records real model answers so the deployed demo can show them when no live LLM is available
-// (no key, provider quota reached, or an outage). Recorded answers are labelled "기록된 실제 AI 응답" with model and date.
+// (no key, provider quota reached, rate limit, or an outage). Shown as "기록된 실제 LLM 응답" with model and date.
 //
 // Usage (the dev server must be running with LLM_* set in .env.local):
 //   npm run dev -- -p 3100
-//   npm run record              # records only what is missing; saves after every item
-//   npm run record -- --fresh   # discards existing recordings first
+//   npm run record                        # all scenarios; records only what is missing; saves after every item
+//   npm run record -- --scenario tax      # one scenario
+//   npm run record -- --fresh             # discard existing recordings of the selected scenarios first
 //
 // Only answers whose source is "live" are saved.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { DEFAULT_SETTINGS, EXAMPLE_INPUT, NOTE_PRESETS, type EquipmentInput, type PolicySettings } from "../src/scenario/equipment";
-import { llmOnlyKey } from "../src/scenario/recorded";
+import { SCENARIOS } from "../src/scenario";
+import { llmOnlyKey, toInput, type Scenario } from "../src/scenario/types";
 
 const BASE = process.env.DEMO_URL ?? "http://localhost:3100";
 const FILE = new URL("../src/scenario/recorded.json", import.meta.url);
+const arg = (name: string) => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
+const selected = SCENARIOS.filter((s) => !arg("--scenario") || s.id === arg("--scenario"));
 
 type Rec = { raw: unknown; model: string; recordedAt: string };
-const store: { judge: (Rec & { note: string })[]; llmOnly: (Rec & { key: string; name: string })[] } = process.argv.includes("--fresh")
-  ? { judge: [], llmOnly: [] }
-  : JSON.parse(readFileSync(FILE, "utf8"));
+const store: { judge: (Rec & { scenario: string; note: string })[]; llmOnly: (Rec & { key: string; name: string })[] } = JSON.parse(
+  readFileSync(FILE, "utf8"),
+);
+if (process.argv.includes("--fresh")) {
+  const ids = new Set(selected.map((s) => s.id));
+  store.judge = store.judge.filter((r) => !ids.has(r.scenario));
+  store.llmOnly = store.llmOnly.filter((r) => !ids.has(JSON.parse(r.key).s));
+}
 const save = () => writeFileSync(FILE, JSON.stringify(store, null, 2) + "\n");
 
-class QuotaError extends Error {}
-
-/** Retries brief overloads; stops at once on a quota error. */
+/** Retries brief overloads; stops at once when no live answer can be had (e.g. quota). */
 async function post(path: string, body: unknown) {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(`${BASE}${path}`, {
@@ -33,46 +42,50 @@ async function post(path: string, body: unknown) {
     });
     const data = await res.json();
     if (res.ok && data.source === "live") return data as { raw: unknown; model: string };
-    if (res.ok) {
-      // The server fell back (recorded/prepared) because the live call failed; we cannot tell quota from overload here,
-      // so check the server log. Try a couple of times in case it was an overload.
-      if (attempt >= 3) throw new QuotaError(`${path}: no live answer after ${attempt} tries (server fell back to "${data.source}"). Likely quota exhausted — see server log.`);
-    } else if (res.status === 429 || attempt >= 3) {
-      throw new QuotaError(`${path}: ${data.error ?? res.status}`);
-    }
+    if (attempt >= 3 || res.status === 429)
+      throw new Error(`${path}: no live answer (${data.error ?? `source "${data.source}"`}). Likely quota or rate limit — see the server log.`);
     console.log(`  no live answer, retrying in ${attempt * 10}s`);
     await new Promise((r) => setTimeout(r, attempt * 10_000));
   }
 }
 
-const LLM_ONLY_CASES: { name: string; input: EquipmentInput; settings: PolicySettings }[] = [
-  { name: "example", input: EXAMPLE_INPUT, settings: DEFAULT_SETTINGS },
-  { name: "pressure 9.5", input: { ...EXAMPLE_INPUT, pressure: "9.5" }, settings: DEFAULT_SETTINGS },
-  { name: "threshold 5", input: EXAMPLE_INPUT, settings: { ...DEFAULT_SETTINGS, threshold: 5 } },
-  ...NOTE_PRESETS.slice(1).map((p) => ({
-    name: `note: ${p.label}`,
-    input: { ...EXAMPLE_INPUT, maintenance_note: p.text },
-    settings: DEFAULT_SETTINGS,
-  })),
-];
+/** LLM-only inputs worth having on record: the example and each mission's changed input (deduplicated). */
+function llmOnlyCases(sc: Scenario) {
+  const cases = [
+    { name: "example", draft: sc.exampleDraft },
+    ...sc.missions.map((m) => ({ name: `mission: ${m.id}`, draft: m.apply(sc.exampleDraft).draft })),
+  ];
+  const seen = new Set<string>();
+  return cases
+    .map((c) => ({ ...c, input: toInput(sc, c.draft), settings: c.draft.settings }))
+    .map((c) => ({ ...c, key: llmOnlyKey(sc, c.input, c.settings) }))
+    .filter((c) => !seen.has(c.key) && seen.add(c.key));
+}
 
 async function main() {
-  for (const p of NOTE_PRESETS) {
-    if (store.judge.some((r) => r.note === p.text)) continue;
-    const data = await post("/api/judge", { nodeId: "sensor_fault_evidence", evidence: { "input.maintenance_note": p.text } });
-    store.judge.push({ note: p.text, raw: data.raw, model: data.model, recordedAt: new Date().toISOString() });
-    save();
-    console.log(`judge   · ${p.label}: saved`);
+  for (const sc of selected) {
+    const graph = sc.buildGraph(sc.defaultSettings);
+    for (const node of graph.nodes) {
+      if (node.resolver_type !== "LLM") continue;
+      const field = sc.fields.find((f) => `input.${f.key}` === node.resolver_config.evidence[0]);
+      if (!field || field.kind !== "note") continue;
+      for (const p of field.presets) {
+        if (store.judge.some((r) => r.scenario === sc.id && r.note === p.text)) continue;
+        const data = await post("/api/judge", { scenario: sc.id, nodeId: node.id, evidence: { [`input.${field.key}`]: p.text } });
+        store.judge.push({ scenario: sc.id, note: p.text, raw: data.raw, model: data.model, recordedAt: new Date().toISOString() });
+        save();
+        console.log(`[${sc.id}] judge   · ${p.label}: saved`);
+      }
+    }
+    for (const c of llmOnlyCases(sc)) {
+      if (store.llmOnly.some((r) => r.key === c.key)) continue;
+      const data = await post("/api/llm-only", { scenario: sc.id, input: c.input, settings: c.settings });
+      store.llmOnly.push({ key: c.key, name: `${sc.id} ${c.name}`, raw: data.raw, model: data.model, recordedAt: new Date().toISOString() });
+      save();
+      console.log(`[${sc.id}] llmOnly · ${c.name}: saved`);
+    }
   }
-  for (const c of LLM_ONLY_CASES) {
-    const key = llmOnlyKey(c.input, c.settings);
-    if (store.llmOnly.some((r) => r.key === key)) continue;
-    const data = await post("/api/llm-only", { input: c.input, settings: c.settings });
-    store.llmOnly.push({ key, name: c.name, raw: data.raw, model: data.model, recordedAt: new Date().toISOString() });
-    save();
-    console.log(`llmOnly · ${c.name}: saved`);
-  }
-  console.log(`\nDone: ${store.judge.length}/${NOTE_PRESETS.length} judgments, ${store.llmOnly.length}/${LLM_ONLY_CASES.length} LLM-only answers.`);
+  console.log(`\nDone. Stored: ${store.judge.length} judgments, ${store.llmOnly.length} LLM-only answers.`);
 }
 
 main().catch((err) => {

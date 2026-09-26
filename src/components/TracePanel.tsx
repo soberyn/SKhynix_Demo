@@ -7,8 +7,11 @@ export function TracePanel({
   decisionNode,
   overrides,
   onOverride,
+  names,
 }: {
   trace: TraceEntry[];
+  /** Display names for input fields and nodes (from the scenario). */
+  names: Record<string, string>;
   decisionNode: string;
   /** Pending human decisions (applied on the next run). */
   overrides: Record<string, Override>;
@@ -41,7 +44,7 @@ export function TracePanel({
             {t.inputs && (
               <>
                 <dt>본 입력</dt>
-                <dd className={s.mono}>{summarizeInputs(t)}</dd>
+                <dd className={s.mono}>{summarizeInputs(t, names)}</dd>
               </>
             )}
             {t.explanation && (
@@ -82,7 +85,7 @@ export function TracePanel({
               <>
                 <dt>실행 안 함</dt>
                 <dd className={s.errorText}>
-                  앞 단계 ‘{nameOf(t.blockedBy)}’가 실패하거나 차단되어, 이 단계는 실행하지 않았습니다.
+                  앞 단계 ‘{nameOf(t.blockedBy, names)}’가 실패하거나 차단되어, 이 단계는 실행하지 않았습니다.
                 </dd>
               </>
             )}
@@ -130,35 +133,29 @@ function OverrideControl({
   );
 }
 
-const INPUT_NAMES: Record<string, string> = {
-  pressure: "압력",
-  pressure_limit: "기준값",
-  evaluation_time: "판단 시각",
+/** Names for values computed inside rule functions (not scenario fields). */
+const EXTRA_NAMES: Record<string, string> = {
   window_hours: "집계 범위(시간)",
   threshold: "기준 횟수",
   count: "집계 횟수",
-  maintenance_note: "정비 기록",
-  alarm_history: "알람 이력",
-  pressure_abnormal: "압력 이상",
-  repeated_alarm: "알람 반복",
-  sensor_fault_evidence: "센서 고장 근거",
+  required_years: "요건(년)",
 };
 
-const nameOf = (key: string) => {
+const nameOf = (key: string, names: Record<string, string>) => {
   const k = key.replace(/^(input|node)\./, "");
-  return INPUT_NAMES[k] ?? k;
+  return names[k] ?? EXTRA_NAMES[k] ?? k;
 };
 
-function summarizeInputs(t: TraceEntry): string {
+function summarizeInputs(t: TraceEntry, names: Record<string, string>): string {
   const entries = Object.entries(t.inputs ?? {});
   if (t.resolverType === "LLM") {
     // Evidence texts are long; show which fields were given to the LLM, not their full content.
     return (
       entries
         .filter(([k]) => k !== "question")
-        .map(([k, v]) => `${nameOf(k)} ${String(v).split("\n").length}줄`)
-        .join(", ") + " (LLM에게는 이 두 가지만 전달)"
+        .map(([k, v]) => `${nameOf(k, names)} ${String(v).split("\n").length}줄`)
+        .join(", ") + " (LLM에게는 이것만 전달)"
     );
   }
-  return entries.map(([k, v]) => `${nameOf(k)} = ${formatValue(v as never)}`).join(", ");
+  return entries.map(([k, v]) => `${nameOf(k, names)} = ${formatValue(v as never)}`).join(", ");
 }

@@ -1,18 +1,18 @@
 import type { LLMProvider, LLMRequest, LLMResponse } from "@/core/resolvers";
 
 /** Browser-side provider: forwards an LLM node to the server route, which holds the API key. */
-export const httpLLM: LLMProvider = {
+export const httpLLM = (scenario: string): LLMProvider => ({
   async evaluate(request: LLMRequest): Promise<LLMResponse> {
     const res = await fetch("/api/judge", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ nodeId: request.nodeId, evidence: request.evidence }),
+      body: JSON.stringify({ scenario, nodeId: request.nodeId, evidence: request.evidence }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error ?? `LLM 요청 실패 (${res.status})`);
     return data as LLMResponse;
   },
-};
+});
 
 /** Failure example: a provider that returns output violating the schema. Clearly labelled as simulated. */
 export const malformedLLM: LLMProvider = {

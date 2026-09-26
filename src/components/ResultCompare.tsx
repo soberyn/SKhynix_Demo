@@ -44,7 +44,9 @@ export function ResultCompare({
   const structured =
     run && !running ? (run.decisionStatus === "SUCCEEDED" ? formatValue(run.decision) : "판단 불가") : undefined;
   const llm = llmOnly?.ok ? llmOnly.action : undefined;
-  const bothDone = structured !== undefined && llm !== undefined && !failureDemo;
+  // A human override applies only to LLM + rules; a different conclusion then is not an LLM-only mistake.
+  const humanDecided = !!run && !running && Object.values(run.states).some((st) => st.output?.human);
+  const bothDone = structured !== undefined && llm !== undefined && !failureDemo && !humanDecided;
   const same = bothDone && structured === llm;
 
   const facts = run
@@ -91,6 +93,12 @@ export function ResultCompare({
           ‘{graph.nodes.find((n) => n.id === run.trace.find((t) => t.status === "FAILED")?.nodeId)?.label ?? "?"}’ 단계에서
           실패했습니다. 그 결과가 필요한 다음 단계는 실행하지 않았습니다. 실패 위치가 특정되고, 영향이 다른 단계로 번지지
           않습니다.
+        </p>
+      )}
+      {humanDecided && llm !== undefined && (
+        <p className={s.changeNote}>
+          사람이 지정한 판단은 LLM + 규칙에만 반영됩니다. LLM 단독에는 판단 하나만 고칠 방법이 없어, 같은 입력에 대한 원래
+          답이 그대로 표시됩니다. 이 경우 두 결론의 차이는 LLM 단독의 오류가 아닙니다.
         </p>
       )}
       {bothDone && (

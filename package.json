@@ -10,7 +10,9 @@
     "test": "vitest run",
     "measure": "tsx scripts/measure.ts",
     "screenshots": "tsx scripts/screenshots.ts",
-    "record": "tsx scripts/record.ts"
+    "record": "tsx scripts/record.ts",
+    "review": "tsx scripts/review-recorded.ts",
+    "prune": "tsx scripts/prune-recorded.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

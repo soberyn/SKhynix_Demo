@@ -17,7 +17,7 @@ export function PolicyTable({ graph, states }: { graph: JudgmentGraph; states: R
   return (
     <div className={s.policy}>
       <h3 className={s.subTitle}>
-        설비 조치 — 데모 정책 표 <span className={s.badge + " " + s.badge_RULE}>≡ 규칙</span>
+        {node.label} — 데모 정책 표 <span className={s.badge + " " + s.badge_RULE}>≡ 규칙</span>
       </h3>
       <table className={s.table}>
         <thead>
@@ -26,7 +26,7 @@ export function PolicyTable({ graph, states }: { graph: JudgmentGraph; states: R
             {keys.map((k) => (
               <th key={k}>{labels[k]}</th>
             ))}
-            <th>조치</th>
+            <th>결론</th>
           </tr>
         </thead>
         <tbody>
@@ -44,7 +44,7 @@ export function PolicyTable({ graph, states }: { graph: JudgmentGraph; states: R
         </tbody>
       </table>
       <p className={s.caption}>
-        위 세 판단의 결과를 이 표에 위에서부터 대입해, 처음 맞는 행의 조치를 선택합니다. 실행 후 적용된 행이 ▶로 표시됩니다.
+        앞의 판단 {keys.length}개의 결과를 이 표에 위에서부터 대입해, 처음 맞는 행의 결론을 선택합니다. 실행 후 적용된 행이 ▶로 표시됩니다.
       </p>
     </div>
   );

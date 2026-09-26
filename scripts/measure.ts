@@ -1,109 +1,101 @@
-// Honest measurement of Structured Judgment vs LLM Only (implementation_prompt §9-1).
+// Honest measurement: run the same input N times with LLM-only and with LLM + rules, and count the outcomes.
 //
-// Usage (needs a running server with a live LLM configured in .env.local):
-//   npm run dev -- -p 3100        # in another terminal
-//   npm run measure -- --runs 10  # writes docs/measurements.md
+// Usage (the dev server must be running with a live LLM in .env.local):
+//   npm run dev -- -p 3100
+//   npm run measure -- --scenario equipment --case mission:policy --runs 10
+//   npm run measure -- --scenario tax --case example --runs 10
 //
-// Results are written as measured, including results unfavourable to the structured mode.
+// Results are appended to docs/measurements.md exactly as measured, including results unfavourable to LLM + rules.
+// Mind the provider's free-tier quota: each run costs up to 2 LLM calls.
 
-import { writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { runGraph } from "../src/core/engine";
 import type { LLMProvider, LLMResponse } from "../src/core/resolvers";
-import { EQUIPMENT_FUNCTIONS, EQUIPMENT_GRAPH, EXAMPLE_INPUT, type EquipmentInput } from "../src/scenario/equipment";
+import { getScenario } from "../src/scenario";
+import { toInput, type Draft } from "../src/scenario/types";
 
 const BASE = process.env.DEMO_URL ?? "http://localhost:3100";
-const runsArg = process.argv.indexOf("--runs");
-const RUNS = runsArg > 0 ? Number(process.argv[runsArg + 1]) : 10;
+const arg = (name: string, d?: string) => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : d;
+};
+const scenario = getScenario(arg("--scenario", "equipment"));
+if (!scenario) throw new Error("Unknown --scenario");
+const caseId = arg("--case", "example")!;
+const RUNS = Number(arg("--runs", "10"));
+const PAUSE_MS = Number(arg("--pause", "4000")); // stay under per-minute free-tier limits
 
-const post = async (path: string, body: unknown) => {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+const mission = scenario.missions.find((m) => caseId === `mission:${m.id}`);
+if (caseId !== "example" && !mission) throw new Error(`Unknown --case ${caseId}`);
+if (mission && Object.keys(mission.apply(scenario.exampleDraft).overrides ?? {}).length)
+  throw new Error("Missions with a human override are not measured (the override is not part of the input).");
+const draft: Draft = mission ? mission.apply(scenario.exampleDraft).draft : scenario.exampleDraft;
+const input = toInput(scenario, draft);
+
+async function post(path: string, body: unknown) {
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+  if (data.source !== "live") throw new Error(`Expected a live answer, got "${data.source}" (quota or rate limit?)`);
   return data;
-};
+}
 
 const liveLLM: LLMProvider = {
   async evaluate(req): Promise<LLMResponse> {
-    const data = await post("/api/judge", { nodeId: req.nodeId, evidence: req.evidence });
-    if (data.source !== "live") throw new Error(`Expected a live LLM answer, got "${data.source}". Configure LLM_* in .env.local.`);
-    return data;
+    return post("/api/judge", { scenario: scenario!.id, nodeId: req.nodeId, evidence: req.evidence });
   },
 };
 
-async function structured(input: EquipmentInput): Promise<string> {
-  const r = await runGraph(EQUIPMENT_GRAPH, input, { functions: EQUIPMENT_FUNCTIONS, llm: liveLLM });
-  return r.decisionStatus === "SUCCEEDED" ? String(r.decision) : `NO DECISION (${r.trace.find((t) => t.error)?.error})`;
-}
-
-async function llmOnly(input: EquipmentInput): Promise<string> {
-  try {
-    const data = await post("/api/llm-only", { input });
-    return typeof data.raw?.action === "string" ? data.raw.action : `INVALID OUTPUT: ${JSON.stringify(data.raw).slice(0, 80)}`;
-  } catch (err) {
-    return `ERROR: ${(err as Error).message}`;
-  }
-}
-
+const pause = () => new Promise((r) => setTimeout(r, PAUSE_MS));
 const tally = (xs: string[]) => {
-  const counts = new Map<string, number>();
-  xs.forEach((x) => counts.set(x, (counts.get(x) ?? 0) + 1));
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const m = new Map<string, number>();
+  xs.forEach((x) => m.set(x, (m.get(x) ?? 0) + 1));
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join("; ");
 };
-const fmt = (xs: string[]) => tally(xs).map(([k, n]) => `${k} ×${n}`).join("<br>");
-const modeShare = (xs: string[]) => `${tally(xs)[0][1]}/${xs.length}`;
-
-const twoAlarms = EXAMPLE_INPUT.alarm_history.split("\n").filter((l) => !/14:08|17:21/.test(l)).join("\n");
-const threeAlarms = EXAMPLE_INPUT.alarm_history.split("\n").filter((l) => !/17:21/.test(l)).join("\n");
-
-const CASES: { name: string; input: EquipmentInput }[] = [
-  { name: "Example input", input: EXAMPLE_INPUT },
-  { name: "pressure 9.99 (below limit)", input: { ...EXAMPLE_INPUT, pressure: "9.99" } },
-  { name: "pressure 10.0 (= limit, not above)", input: { ...EXAMPLE_INPUT, pressure: "10.0" } },
-  { name: "pressure 10.01 (just above)", input: { ...EXAMPLE_INPUT, pressure: "10.01" } },
-  { name: "2 warnings in 24h (below threshold)", input: { ...EXAMPLE_INPUT, alarm_history: twoAlarms } },
-  { name: "3 warnings in 24h (= threshold)", input: { ...EXAMPLE_INPUT, alarm_history: threeAlarms } },
-];
 
 async function main() {
   const started = new Date().toISOString();
-  const lines: string[] = [];
-  for (const c of CASES) {
-    const s: string[] = [];
-    const l: string[] = [];
-    for (let i = 0; i < RUNS; i++) {
-      s.push(await structured(c.input));
-      l.push(await llmOnly(c.input));
-      process.stdout.write(".");
+  const structured: string[] = [];
+  const llmOnly: string[] = [];
+  const llmReasons: string[] = [];
+  for (let i = 0; i < RUNS; i++) {
+    const r = await runGraph(scenario!.buildGraph(draft.settings), input, { functions: scenario!.functions, llm: liveLLM });
+    structured.push(r.decisionStatus === "SUCCEEDED" ? String(r.decision) : `판단 불가 (${r.trace.find((t) => t.error)?.error})`);
+    await pause();
+    try {
+      const d = await post("/api/llm-only", { scenario: scenario!.id, input, settings: draft.settings });
+      llmOnly.push(String(d.raw?.action ?? "INVALID"));
+      llmReasons.push(String(d.raw?.reason ?? ""));
+    } catch (err) {
+      llmOnly.push(`오류: ${(err as Error).message}`);
     }
-    lines.push(`| ${c.name} | ${fmt(s)} | ${modeShare(s)} | ${fmt(l)} | ${modeShare(l)} |`);
+    await pause();
+    process.stdout.write(".");
   }
   process.stdout.write("\n");
 
-  const md = [
-    "# Measurements",
+  const file = new URL("../docs/measurements.md", import.meta.url);
+  if (!existsSync(file)) writeFileSync(file, "# Measurements\n\nEach block is one measurement, recorded exactly as observed.\n");
+  const block = [
     "",
-    `- Measured: ${started}`,
-    `- Runs per case per mode: ${RUNS}`,
-    `- Model: ${process.env.LLM_MODEL ?? "(server default, see /api responses)"} via ${BASE}; provider default sampling settings`,
-    "- Structured: only the `sensor_fault_evidence` node calls the LLM; RULE/CODE nodes are deterministic.",
-    "- LLM Only: one call receives all inputs and the same policy text.",
+    `## ${scenario!.name} — ${caseId}`,
     "",
-    "| Case | Structured — results | Structured — most common | LLM Only — results | LLM Only — most common |",
-    "|---|---|---|---|---|",
-    ...lines,
+    `- Measured: ${started} · runs: ${RUNS} · model: ${process.env.LLM_MODEL ?? "(server setting)"} · provider default sampling`,
+    `- LLM + 규칙: ${tally(structured)}`,
+    `- LLM 단독: ${tally(llmOnly)}`,
     "",
-    "Results are recorded as measured. This compares consistency on a small hypothetical scenario; it is not a general accuracy claim.",
+    "<details><summary>LLM 단독 설명 (전체)</summary>",
+    "",
+    ...llmReasons.map((r, i) => `${i + 1}. ${r}`),
+    "",
+    "</details>",
     "",
   ].join("\n");
-  writeFileSync(new URL("../docs/measurements.md", import.meta.url), md);
-  console.log(md);
+  appendFileSync(file, block);
+  console.log(block);
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(err.message ?? err);
   process.exit(1);
 });
