@@ -3,6 +3,9 @@ import { recordedJudgment } from "@/scenario/recorded";
 import { preparedFor } from "@/scenario/types";
 import { MAX_FIELD_CHARS, completeJSON, liveConfig, rateLimited } from "@/server/llm";
 
+// Allow a slow LLM reply (and one retry) to finish on the deployment platform.
+export const maxDuration = 30;
+
 // Evaluates ONE LLM node of a scenario's judgment DAG.
 // The question is taken from the server-side graph, not from the client, so this endpoint
 // cannot be used as a general-purpose LLM proxy.

@@ -3,6 +3,9 @@ import { recordedLLMOnly } from "@/scenario/recorded";
 import { clampSettings, fieldLabel, llmOnlyKey } from "@/scenario/types";
 import { MAX_FIELD_CHARS, completeJSON, liveConfig, rateLimited } from "@/server/llm";
 
+// Allow a slow LLM reply (and one retry) to finish on the deployment platform.
+export const maxDuration = 30;
+
 // LLM Only mode: the whole input and the same policy text go to one LLM call,
 // which returns the final outcome. The prompt is not tuned to make it fail.
 
