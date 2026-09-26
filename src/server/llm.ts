@@ -17,13 +17,15 @@ export interface LiveConfig {
 }
 
 export function liveConfig(): LiveConfig | null {
-  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() as Provider;
+  // Values are trimmed: a pasted value can carry a leading tab or space, which would break the request URL or the key.
+  const env = (name: string) => process.env[name]?.trim() || undefined;
+  const provider = env("LLM_PROVIDER")?.toLowerCase() as Provider;
   // Provider-specific key names are accepted too (e.g. GEMINI_API_KEY), since that is how keys are usually stored.
   const apiKey =
-    process.env.LLM_API_KEY ||
-    { gemini: process.env.GEMINI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, openai: process.env.OPENAI_API_KEY }[provider];
+    env("LLM_API_KEY") ||
+    { gemini: env("GEMINI_API_KEY"), anthropic: env("ANTHROPIC_API_KEY"), openai: env("OPENAI_API_KEY") }[provider];
   if (!apiKey || !PROVIDERS.includes(provider)) return null;
-  const model = process.env.LLM_MODEL || (provider === "anthropic" ? "claude-sonnet-5" : "");
+  const model = env("LLM_MODEL") || (provider === "anthropic" ? "claude-sonnet-5" : "");
   if (!model) return null;
   return { provider, apiKey, model };
 }

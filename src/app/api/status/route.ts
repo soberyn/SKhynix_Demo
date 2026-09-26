@@ -12,6 +12,11 @@ export async function GET() {
     env: {
       LLM_PROVIDER: process.env.LLM_PROVIDER ?? null,
       LLM_MODEL: process.env.LLM_MODEL ?? null,
+      // Whitespace around a value is ignored by the app, but shown here so it can be cleaned up in the settings.
+      hasWhitespace: ["LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "GEMINI_API_KEY"].filter((k) => {
+        const v = process.env[k];
+        return v !== undefined && v !== v.trim();
+      }),
       LLM_API_KEY: !!process.env.LLM_API_KEY,
       GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
     },
