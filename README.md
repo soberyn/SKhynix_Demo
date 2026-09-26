@@ -76,7 +76,7 @@ npm run record        # writes src/scenario/recorded.json — review it before d
 
 ## Deployment (Vercel)
 
-- The API key lives only in Vercel environment variables (`LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`); it never reaches the browser.
+- The API key lives only in Vercel environment variables (`LLM_PROVIDER` = `gemini` | `anthropic` | `openai`, `LLM_API_KEY`, `LLM_MODEL`); it never reaches the browser.
 - Set a monthly spending limit in the provider console. The endpoints already allow only the demo's fixed question, cap input length and rate-limit per IP.
 - Visits: `<Analytics />` (Vercel Web Analytics, cookieless) counts page views; enable it in the Vercel project. Link the portfolio PDF to **`/p`** (same demo) so portfolio-originated visits are counted separately. Custom events: `mission`, `run`, `failure_example` (availability depends on the Vercel plan).
 

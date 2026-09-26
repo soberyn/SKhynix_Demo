@@ -3,20 +3,23 @@ import "server-only";
 // Server-side LLM access. The API key never reaches the browser.
 //
 // Environment:
-//   LLM_PROVIDER   "anthropic" | "openai"   (unset → no live LLM; the demo uses its labelled fallback)
+//   LLM_PROVIDER   "gemini" | "anthropic" | "openai"   (unset → no live LLM; the demo uses recorded/prepared answers)
 //   LLM_API_KEY    provider API key
-//   LLM_MODEL      model id (default for anthropic: claude-sonnet-5; required for openai)
+//   LLM_MODEL      model id (default for anthropic: claude-sonnet-5; required for gemini and openai)
+
+type Provider = "gemini" | "anthropic" | "openai";
+const PROVIDERS: Provider[] = ["gemini", "anthropic", "openai"];
 
 export interface LiveConfig {
-  provider: "anthropic" | "openai";
+  provider: Provider;
   apiKey: string;
   model: string;
 }
 
 export function liveConfig(): LiveConfig | null {
-  const provider = process.env.LLM_PROVIDER;
+  const provider = process.env.LLM_PROVIDER as Provider;
   const apiKey = process.env.LLM_API_KEY;
-  if (!apiKey || (provider !== "anthropic" && provider !== "openai")) return null;
+  if (!apiKey || !PROVIDERS.includes(provider)) return null;
   const model = process.env.LLM_MODEL || (provider === "anthropic" ? "claude-sonnet-5" : "");
   if (!model) return null;
   return { provider, apiKey, model };
@@ -24,8 +27,26 @@ export function liveConfig(): LiveConfig | null {
 
 /** Sends one prompt and returns the parsed JSON object from the reply (unvalidated). */
 export async function completeJSON(config: LiveConfig, system: string, user: string): Promise<unknown> {
-  const text = config.provider === "anthropic" ? await anthropic(config, system, user) : await openai(config, system, user);
+  const call = { gemini, anthropic, openai }[config.provider];
+  const text = await call(config, system, user);
   return extractJSON(text);
+}
+
+async function gemini(config: LiveConfig, system: string, user: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": config.apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`Gemini API ${res.status}`);
+  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
 }
 
 async function anthropic(config: LiveConfig, system: string, user: string): Promise<string> {

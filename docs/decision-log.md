@@ -114,3 +114,9 @@ Format: Problem · Hypothesis · AI suggestion · Alternatives · Decision · Re
 
 - **Decision (user request)**: Vercel Web Analytics (cookieless page views, no personal data) plus a dedicated `/p` path used only in the portfolio PDF, and three usage events (`mission`, `run`, `failure_example`).
 - **Limitation, stated to the user**: This shows *that* and *how* the demo was used (time, country, device, path), not *who* visited.
+
+## 17. Gemini (free tier) as the provider
+
+- **Decision (user)**: Use the Gemini API free tier. Added a `gemini` provider (REST `generateContent`, JSON response mode) next to Anthropic and OpenAI; selected by `LLM_PROVIDER`.
+- **Notes**: The model id is required (`LLM_MODEL`) and should be checked in Google AI Studio. Free-tier rate limits are covered by recorded answers when a live call fails. Free-tier inputs may be used by the provider to improve its models — acceptable here because the scenario is hypothetical and contains no personal or company data.
+- **Credential handling**: The key is entered by the user in `.env.local` / Vercel; the assistant does not look it up or copy it between projects.
