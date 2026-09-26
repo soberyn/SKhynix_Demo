@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { runGraph } from "../src/core/engine";
 import type { LLMProvider, LLMResponse } from "../src/core/resolvers";
-import { EQUIPMENT_CODE, EQUIPMENT_GRAPH, EXAMPLE_INPUT, type EquipmentInput } from "../src/scenario/equipment";
+import { EQUIPMENT_FUNCTIONS, EQUIPMENT_GRAPH, EXAMPLE_INPUT, type EquipmentInput } from "../src/scenario/equipment";
 
 const BASE = process.env.DEMO_URL ?? "http://localhost:3100";
 const runsArg = process.argv.indexOf("--runs");
@@ -35,7 +35,7 @@ const liveLLM: LLMProvider = {
 };
 
 async function structured(input: EquipmentInput): Promise<string> {
-  const r = await runGraph(EQUIPMENT_GRAPH, input, { code: EQUIPMENT_CODE, llm: liveLLM });
+  const r = await runGraph(EQUIPMENT_GRAPH, input, { functions: EQUIPMENT_FUNCTIONS, llm: liveLLM });
   return r.decisionStatus === "SUCCEEDED" ? String(r.decision) : `NO DECISION (${r.trace.find((t) => t.error)?.error})`;
 }
 

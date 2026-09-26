@@ -17,7 +17,7 @@ export function PolicyTable({ graph, states }: { graph: JudgmentGraph; states: R
   return (
     <div className={s.policy}>
       <h3 className={s.subTitle}>
-        설비 조치 — 데모 정책 표 <span className={s.badge + " " + s.badge_RULE}>≡ RULE</span>
+        설비 조치 — 데모 정책 표 <span className={s.badge + " " + s.badge_RULE}>≡ 규칙</span>
       </h3>
       <table className={s.table}>
         <thead>

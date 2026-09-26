@@ -4,7 +4,7 @@ import "server-only";
 //
 // Environment:
 //   LLM_PROVIDER   "gemini" | "anthropic" | "openai"   (unset → no live LLM; the demo uses recorded/prepared answers)
-//   LLM_API_KEY    provider API key
+//   LLM_API_KEY    provider API key (or GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)
 //   LLM_MODEL      model id (default for anthropic: claude-sonnet-5; required for gemini and openai)
 
 type Provider = "gemini" | "anthropic" | "openai";
@@ -17,8 +17,11 @@ export interface LiveConfig {
 }
 
 export function liveConfig(): LiveConfig | null {
-  const provider = process.env.LLM_PROVIDER as Provider;
-  const apiKey = process.env.LLM_API_KEY;
+  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() as Provider;
+  // Provider-specific key names are accepted too (e.g. GEMINI_API_KEY), since that is how keys are usually stored.
+  const apiKey =
+    process.env.LLM_API_KEY ||
+    { gemini: process.env.GEMINI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, openai: process.env.OPENAI_API_KEY }[provider];
   if (!apiKey || !PROVIDERS.includes(provider)) return null;
   const model = process.env.LLM_MODEL || (provider === "anthropic" ? "claude-sonnet-5" : "");
   if (!model) return null;
@@ -28,8 +31,35 @@ export function liveConfig(): LiveConfig | null {
 /** Sends one prompt and returns the parsed JSON object from the reply (unvalidated). */
 export async function completeJSON(config: LiveConfig, system: string, user: string): Promise<unknown> {
   const call = { gemini, anthropic, openai }[config.provider];
-  const text = await call(config, system, user);
+  const text = await withRetry(() => call(config, system, user));
   return extractJSON(text);
+}
+
+class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** Retries temporary overload errors twice with a short backoff. Quota errors (429) are not retried — retrying only burns more quota. */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const temporary = err instanceof HttpError && [500, 503].includes(err.status);
+      if (!temporary || attempt >= 2) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    }
+  }
+}
+
+async function failure(provider: string, res: Response): Promise<HttpError> {
+  const body = await res.text().catch(() => "");
+  return new HttpError(`${provider} API ${res.status}: ${body.slice(0, 200)}`, res.status);
 }
 
 async function gemini(config: LiveConfig, system: string, user: string): Promise<string> {
@@ -42,9 +72,9 @@ async function gemini(config: LiveConfig, system: string, user: string): Promise
       contents: [{ role: "user", parts: [{ text: user }] }],
       generationConfig: { responseMimeType: "application/json" },
     }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(45_000),
   });
-  if (!res.ok) throw new Error(`Gemini API ${res.status}`);
+  if (!res.ok) throw await failure("Gemini", res);
   const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
 }
@@ -63,9 +93,9 @@ async function anthropic(config: LiveConfig, system: string, user: string): Prom
       system,
       messages: [{ role: "user", content: user }],
     }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(45_000),
   });
-  if (!res.ok) throw new Error(`Anthropic API ${res.status}`);
+  if (!res.ok) throw await failure("Anthropic", res);
   const data = (await res.json()) as { content?: { type: string; text?: string }[] };
   return (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
 }
@@ -82,9 +112,9 @@ async function openai(config: LiveConfig, system: string, user: string): Promise
         { role: "user", content: user },
       ],
     }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(45_000),
   });
-  if (!res.ok) throw new Error(`OpenAI API ${res.status}`);
+  if (!res.ok) throw await failure("OpenAI", res);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content ?? "";
 }

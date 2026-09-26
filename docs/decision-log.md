@@ -120,3 +120,28 @@ Format: Problem · Hypothesis · AI suggestion · Alternatives · Decision · Re
 - **Decision (user)**: Use the Gemini API free tier. Added a `gemini` provider (REST `generateContent`, JSON response mode) next to Anthropic and OpenAI; selected by `LLM_PROVIDER`.
 - **Notes**: The model id is required (`LLM_MODEL`) and should be checked in Google AI Studio. Free-tier rate limits are covered by recorded answers when a live call fails. Free-tier inputs may be used by the provider to improve its models — acceptable here because the scenario is hypothetical and contains no personal or company data.
 - **Credential handling**: The key is entered by the user in `.env.local` / Vercel; the assistant does not look it up or copy it between projects.
+
+## 18. Free-tier quota: recording must be incremental; the rate limit must not break the demo
+
+- **Problem 1**: The first recording run retried on quota errors (429), burning more quota, and saved only at the end — a failure on the last item discarded 8 successful answers.
+- **Fix**: The recorder saves after every item and skips what is already recorded; the server retries only temporary overloads (500/503), never 429.
+- **Problem 2**: When our own per-IP rate limit was hit, the API returned an error, so the LLM node FAILED and the decision was BLOCKED.
+- **Fix**: The rate limit only skips the *live* call; recorded (then prepared) answers are still served.
+- **Model**: `gemini-3.8-flash` and `gemini-flash-latest` hit the daily free quota; switched to `gemini-3.1-flash-lite` (user: "performance may be lower, generous free usage first"). Pinned by name, not an alias, so recorded answers and measurements stay reproducible.
+
+## 19. RULE and CODE merged into one "규칙" method
+
+- **Problem (raised by the user)**: RULE and CODE are both deterministic; showing them as two methods made the screen harder to read and blurred the main contrast.
+- **Decision (user)**: Only two judgment methods: **규칙** (same input → same result: conditions, tables, calculations) and **LLM** (reads unstructured text). In code, a function-based rule is a `RULE` node of kind `"function"`.
+- **Note**: The original tax system still has Rule, Code and LLM resolvers; the demo simplifies for the reader.
+
+## 20. Show both approaches for the same input, side by side
+
+- **Problem (raised by the user)**: LLM-only was hidden behind a mode switch, so the two results could not be compared.
+- **Decision (user)**: The input panel stays fixed; every run judges the same input with **LLM 단독** and **LLM + 규칙** at once. A comparison bar shows both conclusions and whether they agree; tabs show each approach with the same layout (judgment structure · final decision · process).
+- **When they disagree**: The bar shows what the rules established next to the LLM's full explanation, so the point of divergence is visible.
+
+## 21. A real disagreement, reported as observed
+
+- **Observation**: For the "알람 기준 5회" mission, `gemini-3.1-flash-lite` in LLM-only mode stated that there were **5** pressure warnings (there are 4) and chose "설비 보류". LLM + 규칙 counts 4 with a rule and chooses "모니터링 강화". This happened in the recording run and again in a live run.
+- **How it is presented**: As a recorded real answer with model and date, with no prompt changes to provoke it. It illustrates why deterministic judgments (counting) are not delegated to the LLM; it is not a claim that LLMs always fail — two observations with one lightweight model.

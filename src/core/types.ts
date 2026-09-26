@@ -3,7 +3,8 @@
 // Judgment Structure (the DAG: what must be judged, and what it depends on)
 // is kept separate from Judgment Method (the resolver: how each judgment is evaluated).
 
-export type ResolverType = "RULE" | "CODE" | "LLM";
+/** RULE: deterministic (same input → same result). LLM: reads unstructured text. */
+export type ResolverType = "RULE" | "LLM";
 
 /** Execution status of a node. Never mixed with the judgment result. */
 export type ExecutionStatus =
@@ -36,15 +37,17 @@ export interface RuleTableConfig {
   rows: { when: Record<string, JudgmentValue>; then: JudgmentValue }[];
 }
 
-export type RuleConfig = RuleCompareConfig | RuleTableConfig;
-
-export interface CodeConfig {
+/** A deterministic rule that is easier to write as a function (parsing, time windows, counting). */
+export interface RuleFunctionConfig {
+  kind: "function";
   /** Name of a registered deterministic function. */
   fn: string;
   params?: Record<string, unknown>;
   /** Input fields the function reads. Declared so unchanged nodes can be reused between runs. */
   reads: Ref[];
 }
+
+export type RuleConfig = RuleCompareConfig | RuleTableConfig | RuleFunctionConfig;
 
 export interface LLMConfig {
   /** The single question this node asks the LLM. */
@@ -53,10 +56,7 @@ export interface LLMConfig {
   evidence: Ref[];
 }
 
-export type JudgmentNode =
-  | NodeBase<"RULE", RuleConfig>
-  | NodeBase<"CODE", CodeConfig>
-  | NodeBase<"LLM", LLMConfig>;
+export type JudgmentNode = NodeBase<"RULE", RuleConfig> | NodeBase<"LLM", LLMConfig>;
 
 interface NodeBase<T extends ResolverType, C> {
   id: string;

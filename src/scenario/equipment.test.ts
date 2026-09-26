@@ -5,7 +5,7 @@ import { validateGraph } from "@/core/validate";
 import {
   ACTIONS,
   DEFAULT_SETTINGS,
-  EQUIPMENT_CODE,
+  EQUIPMENT_FUNCTIONS,
   EQUIPMENT_GRAPH,
   EXAMPLE_INPUT,
   buildEquipmentGraph,
@@ -16,7 +16,7 @@ import {
 
 const llmSays = (decision: boolean) => new MockLLM(() => ({ decision, reason: "mock reason", evidence_quotes: [] }));
 const run = (input: Record<string, string>, sensorFault = false) =>
-  runGraph(EQUIPMENT_GRAPH, input, { code: EQUIPMENT_CODE, llm: llmSays(sensorFault) });
+  runGraph(EQUIPMENT_GRAPH, input, { functions: EQUIPMENT_FUNCTIONS, llm: llmSays(sensorFault) });
 
 describe("equipment scenario", () => {
   it("is a valid DAG", () => {
@@ -28,13 +28,13 @@ describe("equipment scenario", () => {
     expect(r.decision).toBe(ACTIONS.HOLD);
     const byNode = Object.fromEntries(r.trace.map((t) => [t.nodeId, t]));
     expect(byNode.pressure_abnormal).toMatchObject({ resolverType: "RULE", result: true, explanation: "12.7 > 10 → 예" });
-    expect(byNode.repeated_alarm).toMatchObject({ resolverType: "CODE", result: true });
+    expect(byNode.repeated_alarm).toMatchObject({ resolverType: "RULE", result: true });
     expect(byNode.repeated_alarm.explanation).toBe('최근 24시간 "압력 경고" 4회 (기준 3회 이상) → 예');
     expect(byNode.sensor_fault_evidence).toMatchObject({ resolverType: "LLM", result: false });
     expect(r.trace[r.trace.length - 1].nodeId).toBe("equipment_action");
   });
 
-  it("CODE excludes other alarm types and alarms outside the window", async () => {
+  it("the alarm rule excludes other alarm types and alarms outside the window", async () => {
     const r = await run(EXAMPLE_INPUT);
     const ev = r.states.repeated_alarm.output?.evidence ?? [];
     expect(ev.filter((e) => e.startsWith("집계:"))).toHaveLength(4);
@@ -44,7 +44,7 @@ describe("equipment scenario", () => {
 
   it("the LLM only sees the maintenance records", async () => {
     const llm = llmSays(false);
-    await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
+    await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
     expect(llm.calls).toHaveLength(1);
     expect(Object.keys(llm.calls[0].evidence)).toEqual(["input.maintenance_note"]);
   });
@@ -63,7 +63,7 @@ describe("equipment scenario", () => {
     });
   });
 
-  it("invalid evaluation time fails the CODE node and blocks the decision", async () => {
+  it("invalid evaluation time fails the alarm rule and blocks the decision", async () => {
     const r = await run({ ...EXAMPLE_INPUT, evaluation_time: "yesterday" });
     expect(r.states.repeated_alarm.status).toBe("FAILED");
     expect(r.states.pressure_abnormal.status).toBe("SUCCEEDED");
@@ -76,11 +76,11 @@ describe("equipment scenario", () => {
     expect(NOTE_PRESETS.map((p) => p.prepared.decision)).toEqual([false, true, false]);
   });
 
-  it("toggling alarms recomputes only the CODE node — the LLM input did not change", async () => {
+  it("toggling alarms recomputes only the alarm rule — the LLM input did not change", async () => {
     const llm = new MockLLM(() => ({ decision: false, reason: "mock", evidence_quotes: [] }));
-    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
+    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
     const fewer = EXAMPLE_INPUT.alarm_history.split("\n").slice(0, 3).join("\n");
-    const second = await runGraph(EQUIPMENT_GRAPH, { ...EXAMPLE_INPUT, alarm_history: fewer }, { code: EQUIPMENT_CODE, llm, previous: first });
+    const second = await runGraph(EQUIPMENT_GRAPH, { ...EXAMPLE_INPUT, alarm_history: fewer }, { functions: EQUIPMENT_FUNCTIONS, llm, previous: first });
     expect(second.states.repeated_alarm.reused).toBeFalsy();
     expect(second.states.sensor_fault_evidence.reused).toBe(true);
     expect(second.llmCalls).toBe(0);
@@ -100,10 +100,10 @@ describe("user benefits: change tracking, human override, policy change", () => 
 
   it("re-running with changed pressure reuses unchanged nodes and makes no LLM call", async () => {
     const { llm, calls } = counting();
-    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
+    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
     expect(first.llmCalls).toBe(1);
 
-    const second = await runGraph(EQUIPMENT_GRAPH, { ...EXAMPLE_INPUT, pressure: "9.5" }, { code: EQUIPMENT_CODE, llm, previous: first });
+    const second = await runGraph(EQUIPMENT_GRAPH, { ...EXAMPLE_INPUT, pressure: "9.5" }, { functions: EQUIPMENT_FUNCTIONS, llm, previous: first });
     expect(second.decision).toBe(ACTIONS.CONTINUE);
     expect(second.llmCalls).toBe(0);
     expect(calls()).toBe(1);
@@ -115,17 +115,17 @@ describe("user benefits: change tracking, human override, policy change", () => 
 
   it("an identical re-run reuses every node", async () => {
     const { llm } = counting();
-    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
-    const second = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm, previous: first });
+    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
+    const second = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm, previous: first });
     expect(Object.values(second.states).every((st) => st.reused)).toBe(true);
     expect(second.decision).toBe(first.decision);
   });
 
   it("a person can decide one judgment; only its dependents are recomputed", async () => {
     const { llm, calls } = counting();
-    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
+    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
     const second = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, {
-      code: EQUIPMENT_CODE,
+      functions: EQUIPMENT_FUNCTIONS,
       llm,
       previous: first,
       overrides: { sensor_fault_evidence: { result: true } },
@@ -142,9 +142,9 @@ describe("user benefits: change tracking, human override, policy change", () => 
 
   it("changing a rule value recomputes only the node that uses it", async () => {
     const { llm } = counting();
-    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm });
+    const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
     const stricter = buildEquipmentGraph({ ...DEFAULT_SETTINGS, threshold: 5 });
-    const second = await runGraph(stricter, EXAMPLE_INPUT, { code: EQUIPMENT_CODE, llm, previous: first });
+    const second = await runGraph(stricter, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm, previous: first });
     expect(second.states.repeated_alarm.reused).toBeFalsy();
     expect(second.states.repeated_alarm.output?.result).toBe(false);
     expect(second.states.pressure_abnormal.reused).toBe(true);

@@ -1,40 +1,6 @@
-import type { JudgmentGraph, Override, RunResult, TraceEntry } from "@/core/types";
+import type { Override, TraceEntry } from "@/core/types";
 import { ResolverBadge, SourceTag, StatusPill, formatValue, sourceMeaning } from "./bits";
 import s from "./demo.module.css";
-
-export function DecisionCard({ run, running, graph }: { run: RunResult | null; running: boolean; graph: JudgmentGraph }) {
-  if (running) return <div className={`${s.decision} ${s.decisionIdle}`}>판단하는 중입니다…</div>;
-  if (!run)
-    return (
-      <div className={`${s.decision} ${s.decisionIdle}`}>
-        왼쪽의 <b>[판단 실행]</b>을 누르면
-        <br />
-        최종 판단과, 각 단계가 무엇을 보고 어떻게 판단했는지가 여기에 표시됩니다.
-      </div>
-    );
-  if (run.decisionStatus !== "SUCCEEDED") {
-    const failed = run.trace.find((t) => t.status === "FAILED");
-    const label = graph.nodes.find((n) => n.id === failed?.nodeId)?.label ?? failed?.nodeId;
-    return (
-      <div className={`${s.decision} ${s.decisionBlocked}`}>
-        <div className={s.decisionLabel}>최종 판단</div>
-        <div className={s.decisionValue}>판단 불가</div>
-        <div className={s.decisionNote}>
-          <b>‘{label}’</b> 단계에서 실패했습니다. 그 결과가 필요한 다음 단계는 실행하지 않았습니다.
-          <br />
-          실패 위치가 특정되고, 영향이 다른 단계로 번지지 않습니다.
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className={s.decision}>
-      <div className={s.decisionLabel}>최종 판단</div>
-      <div className={s.decisionValue}>{formatValue(run.decision)}</div>
-      <div className={s.decisionNote}>가상의 데모 정책에 따른 결과이며, 실제 운영 권고가 아닙니다.</div>
-    </div>
-  );
-}
 
 export function TracePanel({
   trace,
@@ -80,7 +46,7 @@ export function TracePanel({
             )}
             {t.explanation && (
               <>
-                <dt>{t.resolverType === "LLM" ? "AI의 근거" : "판단 방법"}</dt>
+                <dt>{t.resolverType === "LLM" ? "LLM의 근거" : "판단 방법"}</dt>
                 <dd>{t.explanation}</dd>
               </>
             )}
@@ -186,12 +152,12 @@ const nameOf = (key: string) => {
 function summarizeInputs(t: TraceEntry): string {
   const entries = Object.entries(t.inputs ?? {});
   if (t.resolverType === "LLM") {
-    // Evidence texts are long; show which fields were given to the AI, not their full content.
+    // Evidence texts are long; show which fields were given to the LLM, not their full content.
     return (
       entries
         .filter(([k]) => k !== "question")
         .map(([k, v]) => `${nameOf(k)} ${String(v).split("\n").length}줄`)
-        .join(", ") + " (AI에게는 이 두 가지만 전달)"
+        .join(", ") + " (LLM에게는 이 두 가지만 전달)"
     );
   }
   return entries.map(([k, v]) => `${nameOf(k)} = ${formatValue(v as never)}`).join(", ");

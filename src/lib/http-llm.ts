@@ -9,7 +9,7 @@ export const httpLLM: LLMProvider = {
       body: JSON.stringify({ nodeId: request.nodeId, evidence: request.evidence }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? `AI 요청 실패 (${res.status})`);
+    if (!res.ok) throw new Error(data.error ?? `LLM 요청 실패 (${res.status})`);
     return data as LLMResponse;
   },
 };

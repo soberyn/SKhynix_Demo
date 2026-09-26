@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type {
-  CodeConfig,
   CompareOp,
   JudgmentNode,
   JudgmentValue,
@@ -46,7 +45,12 @@ function toNumber(value: unknown, ref: string): number {
   return n;
 }
 
-export function resolveRule(config: RuleConfig, ctx: ResolveContext): ResolverOutput {
+export function resolveRule(config: RuleConfig, ctx: ResolveContext, functions: RuleFunctions): ResolverOutput {
+  if (config.kind === "function") {
+    const fn = functions[config.fn];
+    if (!fn) throw new Error(`등록되지 않은 규칙 함수: ${config.fn}`);
+    return fn(config.params ?? {}, ctx);
+  }
   if (config.kind === "compare") {
     const left = toNumber(readRef(config.left, ctx), config.left);
     const right =
@@ -75,20 +79,10 @@ export function resolveRule(config: RuleConfig, ctx: ResolveContext): ResolverOu
   };
 }
 
-// ---------- CODE ----------
+/** Deterministic functions a RULE node of kind "function" can call. */
+export type RuleFunction = (params: Record<string, unknown>, ctx: ResolveContext) => Omit<ResolverOutput, "llm">;
 
-export type CodeFunction = (
-  params: Record<string, unknown>,
-  ctx: ResolveContext,
-) => Omit<ResolverOutput, "llm">;
-
-export type CodeRegistry = Record<string, CodeFunction>;
-
-export function resolveCode(config: CodeConfig, ctx: ResolveContext, registry: CodeRegistry): ResolverOutput {
-  const fn = registry[config.fn];
-  if (!fn) throw new Error(`등록되지 않은 CODE 함수: ${config.fn}`);
-  return fn(config.params ?? {}, ctx);
-}
+export type RuleFunctions = Record<string, RuleFunction>;
 
 // ---------- LLM ----------
 

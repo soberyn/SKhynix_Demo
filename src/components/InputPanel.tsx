@@ -104,7 +104,7 @@ export function InputPanel({
 
       <fieldset className={`${mark("note")} ${s.fieldset}`}>
         <legend className={s.fieldLabel}>
-          정비 기록 <span className={s.fieldHint}>AI가 읽는 유일한 입력</span>
+          정비 기록 <span className={s.fieldHint}>LLM이 읽는 유일한 입력</span>
         </legend>
         <div className={s.segment} role="radiogroup" aria-label="정비 기록 선택">
           {[...NOTE_PRESETS.map((p) => ({ id: p.id, label: p.label })), { id: "custom", label: "직접 입력" }].map((o) => (
@@ -123,7 +123,7 @@ export function InputPanel({
         {draft.noteId === "custom" ? (
           <>
             <textarea rows={5} maxLength={4000} value={draft.customNote} onChange={(e) => set("customNote", e.target.value)} />
-            <p className={s.fieldNote}>직접 입력한 기록은 실제 AI가 연결된 경우에만 판단됩니다.</p>
+            <p className={s.fieldNote}>직접 입력한 기록은 실제 LLM이 연결된 경우에만 판단됩니다.</p>
           </>
         ) : (
           <p className={s.notePreview}>{noteText(draft)}</p>

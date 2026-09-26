@@ -16,7 +16,8 @@ const SYSTEM = [
 ].join("\n");
 
 export async function POST(request: Request) {
-  if (rateLimited(request)) return Response.json({ error: "요청이 너무 많습니다. 몇 분 후 다시 시도해 주세요." }, { status: 429 });
+  // The rate limit protects the API key. When it is hit, the live call is skipped but recorded answers still work.
+  const limited = rateLimited(request);
 
   const body = (await request.json().catch(() => null)) as { nodeId?: string; evidence?: Record<string, string> } | null;
   const node = EQUIPMENT_GRAPH.nodes.find((n) => n.id === body?.nodeId && n.resolver_type === "LLM");
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     evidence[ref] = value;
   }
 
-  const config = liveConfig();
+  const config = limited ? null : liveConfig();
   if (config) {
     try {
       const user = [
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   const prepared = preparedAnswer(evidence);
   if (prepared) return Response.json({ raw: prepared, source: "fallback" });
   return Response.json(
-    { error: "이 배포에는 실제 AI(LLM)가 연결되어 있지 않고, 직접 입력한 정비 기록에는 준비된 답변이 없습니다. 정비 기록을 준비된 예시 중에서 고르면 체험할 수 있습니다." },
+    { error: "이 배포에는 실제 LLM이 연결되어 있지 않고, 직접 입력한 정비 기록에는 준비된 답변이 없습니다. 정비 기록을 준비된 예시 중에서 고르면 체험할 수 있습니다." },
     { status: 503 },
   );
 }

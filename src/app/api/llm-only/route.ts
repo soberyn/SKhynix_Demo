@@ -14,7 +14,8 @@ const SYSTEM = [
 const FIELDS: (keyof EquipmentInput)[] = ["pressure", "pressure_limit", "evaluation_time", "alarm_history", "maintenance_note"];
 
 export async function POST(request: Request) {
-  if (rateLimited(request)) return Response.json({ error: "요청이 너무 많습니다. 몇 분 후 다시 시도해 주세요." }, { status: 429 });
+  // The rate limit protects the API key. When it is hit, the live call is skipped but recorded answers still work.
+  const limited = rateLimited(request);
 
   const body = (await request.json().catch(() => null)) as { input?: Record<string, string>; settings?: Record<string, unknown> } | null;
   const input: Record<string, string> = {};
@@ -29,12 +30,12 @@ export async function POST(request: Request) {
   const fromRecord = () =>
     recorded && Response.json({ raw: recorded.raw, source: "recorded", model: recorded.model, recordedAt: recorded.recordedAt });
 
-  const config = liveConfig();
+  const config = limited ? null : liveConfig();
   if (!config) {
     const r = fromRecord();
     if (r) return r;
     return Response.json(
-      { error: "LLM 단독 모드는 실제 AI(LLM) 연결이 필요한데, 이 배포에는 연결되어 있지 않습니다. 아래 구조 비교표는 그대로 참고하실 수 있습니다." },
+      { error: "이 입력에 대한 LLM 단독 응답 기록이 없고, 지금은 실제 LLM을 호출할 수 없습니다. 미션 입력(또는 예시 입력)으로 실행하면 기록된 실제 LLM 응답을 볼 수 있습니다." },
       { status: 503 },
     );
   }
@@ -59,6 +60,6 @@ export async function POST(request: Request) {
     return Response.json({ raw, source: "live", model: config.model });
   } catch (err) {
     console.error("live LLM call failed:", err);
-    return fromRecord() || Response.json({ error: "AI 호출에 실패했습니다. 다시 시도해 주세요." }, { status: 502 });
+    return fromRecord() || Response.json({ error: "LLM 호출에 실패했습니다. 다시 시도해 주세요." }, { status: 502 });
   }
 }

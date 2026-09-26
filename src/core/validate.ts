@@ -1,6 +1,6 @@
 import type { JudgmentGraph, ResolverType } from "./types";
 
-const KNOWN_RESOLVERS: ResolverType[] = ["RULE", "CODE", "LLM"];
+const KNOWN_RESOLVERS: ResolverType[] = ["RULE", "LLM"];
 
 export class GraphValidationError extends Error {
   constructor(public readonly errors: string[]) {

@@ -36,12 +36,16 @@ Input → Judgment DAG → Resolver dispatch → RULE / CODE / LLM → Structure
 
 ## Demo scenario
 
-| Node | Resolver | Judgment |
+Two judgment methods: **규칙** (deterministic: conditions, tables, calculations) and **LLM** (reads unstructured text).
+
+| Node | Method | Judgment |
 |---|---|---|
-| Pressure abnormal? | RULE | `pressure > pressure_limit` |
-| Repeated alarm? | CODE | ≥ 3 pressure warnings within 24 h (filters type and time window) |
-| Sensor fault evidence? | LLM | Do the maintenance records show the sensor is faulty? (structured output: decision, confidence, reason, evidence quotes) |
-| Equipment action | RULE | Policy table over the three results → CONTINUE / MONITOR / ENGINEER REVIEW — CHECK SENSOR / HOLD |
+| 압력 이상인가? | 규칙 | `pressure > pressure_limit` |
+| 알람이 반복되는가? | 규칙 (function) | ≥ N pressure warnings within the window (filters type and time) |
+| 센서 고장 근거가 있는가? | LLM | Reads only the maintenance records (structured output: decision, confidence, reason, evidence quotes) |
+| 설비 조치 | 규칙 (table) | Policy table over the three results |
+
+Every run judges the same input two ways — **LLM 단독** (one LLM call decides everything) and **LLM + 규칙** — and shows both conclusions side by side, with where they diverge.
 
 Example result: **설비 보류 — 엔지니어 검토 필요** (HOLD). A failure example (simulated schema-violating LLM output) shows the failing node and the BLOCKED decision.
 

@@ -1,4 +1,4 @@
-import { readRef, resolveCode, resolveLLM, resolveRule, type CodeRegistry, type LLMProvider } from "./resolvers";
+import { readRef, resolveLLM, resolveRule, type LLMProvider, type RuleFunctions } from "./resolvers";
 import type {
   JudgmentGraph,
   JudgmentNode,
@@ -12,7 +12,8 @@ import type {
 import { assertValidGraph } from "./validate";
 
 export interface RunOptions {
-  code: CodeRegistry;
+  /** Deterministic functions used by RULE nodes of kind "function". */
+  functions: RuleFunctions;
   llm: LLMProvider;
   /** Called with a snapshot of all node states whenever any state changes. */
   onUpdate?: (states: Record<string, NodeState>) => void;
@@ -168,13 +169,14 @@ function fingerprint(
   ctx: { input: Record<string, unknown>; results: Record<string, JudgmentValue> },
   override: Override | undefined,
 ): string {
+  const cfg = node.resolver_config;
   const refs =
     node.resolver_type === "LLM"
       ? node.resolver_config.evidence
-      : node.resolver_type === "CODE"
-        ? node.resolver_config.reads
-        : node.resolver_config.kind === "compare"
-          ? [node.resolver_config.left, ...(typeof node.resolver_config.right === "string" ? [node.resolver_config.right] : [])]
+      : "kind" in cfg && cfg.kind === "function"
+        ? cfg.reads
+        : "kind" in cfg && cfg.kind === "compare"
+          ? [cfg.left, ...(typeof cfg.right === "string" ? [cfg.right] : [])]
           : [];
   return JSON.stringify({
     type: node.resolver_type,
@@ -192,9 +194,7 @@ async function resolve(
 ): Promise<ResolverOutput> {
   switch (node.resolver_type) {
     case "RULE":
-      return resolveRule(node.resolver_config, ctx);
-    case "CODE":
-      return resolveCode(node.resolver_config, ctx, options.code);
+      return resolveRule(node.resolver_config, ctx, options.functions);
     case "LLM":
       return resolveLLM(node, ctx, options.llm);
   }

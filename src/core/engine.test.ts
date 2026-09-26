@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runGraph } from "./engine";
 import { MockLLM } from "./mock-llm";
-import type { CodeRegistry, LLMProvider } from "./resolvers";
+import type { RuleFunctions, LLMProvider } from "./resolvers";
 import type { JudgmentGraph, JudgmentNode } from "./types";
 import { GraphValidationError, validateGraph } from "./validate";
 
@@ -19,7 +19,7 @@ const graph = (nodes: JudgmentNode[], decision = nodes[nodes.length - 1].id): Ju
   decision_node: decision,
 });
 
-const noCode: CodeRegistry = {};
+const noCode: RuleFunctions = {};
 const noLLM = new MockLLM(() => ({ decision: true, reason: "unused" }));
 
 describe("graph validation", () => {
@@ -49,21 +49,21 @@ describe("graph validation", () => {
 
   it("refuses to execute an invalid graph", async () => {
     const g = graph([rule("A", ["B"]), rule("B", ["A"])]);
-    await expect(runGraph(g, { a: 1 }, { code: noCode, llm: noLLM })).rejects.toBeInstanceOf(GraphValidationError);
+    await expect(runGraph(g, { a: 1 }, { functions: noCode, llm: noLLM })).rejects.toBeInstanceOf(GraphValidationError);
   });
 });
 
 describe("execution model", () => {
   it("runs dependencies before dependents", async () => {
     const g = graph([rule("c", ["b"]), rule("b", ["a"]), rule("a")]);
-    const run = await runGraph(g, { a: 1 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { a: 1 }, { functions: noCode, llm: noLLM });
     expect(run.trace.map((t) => t.nodeId)).toEqual(["a", "b", "c"]);
     expect(Object.values(run.states).every((s) => s.status === "SUCCEEDED")).toBe(true);
   });
 
   it("runs independent nodes concurrently", async () => {
     const events: string[] = [];
-    const code: CodeRegistry = {};
+    const code: RuleFunctions = {};
     const llm: LLMProvider = {
       async evaluate(req) {
         events.push(`start:${req.nodeId}`);
@@ -81,14 +81,14 @@ describe("execution model", () => {
       resolver_config: { question: "q", evidence: [] },
     });
     const g = graph([llmNode("x"), llmNode("y"), rule("z", ["x", "y"], "input.a")]);
-    const run = await runGraph(g, { a: 1 }, { code, llm });
+    const run = await runGraph(g, { a: 1 }, { functions: code, llm });
     expect(events.slice(0, 2).sort()).toEqual(["start:x", "start:y"]);
     expect(run.states.z.status).toBe("SUCCEEDED");
   });
 
   it("keeps judgment result separate from execution status", async () => {
     const g = graph([rule("a", [], "input.a", 10)]);
-    const run = await runGraph(g, { a: 1 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { a: 1 }, { functions: noCode, llm: noLLM });
     expect(run.states.a.status).toBe("SUCCEEDED");
     expect(run.states.a.output?.result).toBe(false);
   });
@@ -106,13 +106,13 @@ describe("resolvers", () => {
         resolver_config: { kind: "compare", left: "input.pressure", op: ">", right: "input.limit" },
       },
     ]);
-    const run = await runGraph(g, { pressure: "12.7", limit: "10.0" }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { pressure: "12.7", limit: "10.0" }, { functions: noCode, llm: noLLM });
     expect(run.states.p.output?.result).toBe(true);
     expect(run.states.p.output?.explanation).toBe("12.7 > 10 → 예");
   });
 
   it("RULE fails on non-numeric input", async () => {
-    const run = await runGraph(graph([rule("a")]), { a: "abc" }, { code: noCode, llm: noLLM });
+    const run = await runGraph(graph([rule("a")]), { a: "abc" }, { functions: noCode, llm: noLLM });
     expect(run.states.a.status).toBe("FAILED");
     expect(run.states.a.error).toMatch(/숫자가 아닙니다/);
   });
@@ -132,13 +132,13 @@ describe("resolvers", () => {
         ],
       },
     };
-    const run = await runGraph(graph([rule("a"), table]), { a: 5 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(graph([rule("a"), table]), { a: 5 }, { functions: noCode, llm: noLLM });
     expect(run.decision).toBe("YES");
     expect(run.states.t.output?.explanation).toBe("정책 표 2행과 일치 → YES");
   });
 
-  it("CODE runs a registered deterministic function", async () => {
-    const code: CodeRegistry = {
+  it("RULE function runs a registered deterministic function", async () => {
+    const code: RuleFunctions = {
       double: (_p, ctx) => ({ result: Number(ctx.input.n) * 2, explanation: "n * 2", inputs: { n: ctx.input.n } }),
     };
     const node: JudgmentNode = {
@@ -146,25 +146,25 @@ describe("resolvers", () => {
       label: "d",
       description: "",
       dependencies: [],
-      resolver_type: "CODE",
-      resolver_config: { fn: "double", reads: ["input.n"] },
+      resolver_type: "RULE",
+      resolver_config: { kind: "function", fn: "double", reads: ["input.n"] },
     };
-    const run = await runGraph(graph([node]), { n: 21 }, { code, llm: noLLM });
+    const run = await runGraph(graph([node]), { n: 21 }, { functions: code, llm: noLLM });
     expect(run.decision).toBe(42);
   });
 
-  it("CODE fails on an unknown function", async () => {
+  it("RULE function fails on an unknown function", async () => {
     const node: JudgmentNode = {
       id: "d",
       label: "d",
       description: "",
       dependencies: [],
-      resolver_type: "CODE",
-      resolver_config: { fn: "missing", reads: [] },
+      resolver_type: "RULE",
+      resolver_config: { kind: "function", fn: "missing", reads: [] },
     };
-    const run = await runGraph(graph([node]), {}, { code: noCode, llm: noLLM });
+    const run = await runGraph(graph([node]), {}, { functions: noCode, llm: noLLM });
     expect(run.states.d.status).toBe("FAILED");
-    expect(run.states.d.error).toBe("등록되지 않은 CODE 함수: missing");
+    expect(run.states.d.error).toBe("등록되지 않은 규칙 함수: missing");
   });
 
   const llmNode: JudgmentNode = {
@@ -178,7 +178,7 @@ describe("resolvers", () => {
 
   it("LLM returns validated structured output and receives only its evidence", async () => {
     const llm = new MockLLM(() => ({ decision: true, confidence: 0.9, reason: "because", evidence_quotes: ["x"] }));
-    const run = await runGraph(graph([llmNode]), { note: "hello", secret: "no" }, { code: noCode, llm });
+    const run = await runGraph(graph([llmNode]), { note: "hello", secret: "no" }, { functions: noCode, llm });
     expect(run.states.l.output).toMatchObject({
       result: true,
       explanation: "because",
@@ -190,7 +190,7 @@ describe("resolvers", () => {
 
   it("LLM malformed output fails the node", async () => {
     const llm = new MockLLM(() => ({ decision: "probably", reason: "" }));
-    const run = await runGraph(graph([llmNode]), { note: "hello" }, { code: noCode, llm });
+    const run = await runGraph(graph([llmNode]), { note: "hello" }, { functions: noCode, llm });
     expect(run.states.l.status).toBe("FAILED");
     expect(run.states.l.error).toMatch(/약속된 형식/);
     expect(run.states.l.error).toMatch(/decision/);
@@ -202,7 +202,7 @@ describe("resolvers", () => {
         throw new Error("LLM unavailable");
       },
     };
-    const run = await runGraph(graph([llmNode]), { note: "hello" }, { code: noCode, llm });
+    const run = await runGraph(graph([llmNode]), { note: "hello" }, { functions: noCode, llm });
     expect(run.states.l.status).toBe("FAILED");
     expect(run.states.l.error).toBe("LLM unavailable");
   });
@@ -211,7 +211,7 @@ describe("resolvers", () => {
 describe("failure propagation and trace", () => {
   it("blocks every transitive dependent of a failed node", async () => {
     const g = graph([rule("bad", [], "input.bad"), rule("mid", ["bad"], "input.good"), rule("end", ["mid"], "input.good")]);
-    const run = await runGraph(g, { bad: "x", good: 1 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { bad: "x", good: 1 }, { functions: noCode, llm: noLLM });
     expect(run.states.bad.status).toBe("FAILED");
     expect(run.states.mid).toMatchObject({ status: "BLOCKED", blockedBy: "bad" });
     expect(run.states.end).toMatchObject({ status: "BLOCKED", blockedBy: "mid" });
@@ -221,7 +221,7 @@ describe("failure propagation and trace", () => {
 
   it("independent branch still succeeds when another branch fails", async () => {
     const g = graph([rule("bad", [], "input.bad"), rule("ok", [], "input.good"), rule("side", ["ok"], "input.good"), rule("end", ["bad", "side"], "input.good")], "end");
-    const run = await runGraph(g, { bad: "x", good: 1 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { bad: "x", good: 1 }, { functions: noCode, llm: noLLM });
     expect(run.states.ok.status).toBe("SUCCEEDED");
     expect(run.states.side.status).toBe("SUCCEEDED");
     expect(run.states.end).toMatchObject({ status: "BLOCKED", blockedBy: "bad" });
@@ -229,7 +229,7 @@ describe("failure propagation and trace", () => {
 
   it("records one trace entry per node with inputs, result and explanation", async () => {
     const g = graph([rule("a", [], "input.a", 0), rule("b", ["a"], "input.a", 5)]);
-    const run = await runGraph(g, { a: 3 }, { code: noCode, llm: noLLM });
+    const run = await runGraph(g, { a: 3 }, { functions: noCode, llm: noLLM });
     expect(run.trace).toHaveLength(2);
     expect(run.trace[1]).toMatchObject({
       order: 2,
@@ -246,7 +246,7 @@ describe("failure propagation and trace", () => {
   it("emits state snapshots that pass through RUNNING", async () => {
     const seen: string[] = [];
     await runGraph(graph([rule("a")]), { a: 1 }, {
-      code: noCode,
+      functions: noCode,
       llm: noLLM,
       onUpdate: (s) => seen.push(s.a.status),
     });

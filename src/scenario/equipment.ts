@@ -1,7 +1,7 @@
 // Simplified hypothetical manufacturing scenario for demonstrating the architecture.
 // It does not represent an actual SK hynix process or SOP.
 
-import type { CodeRegistry, LLMJudgment } from "@/core/resolvers";
+import type { LLMJudgment, RuleFunctions } from "@/core/resolvers";
 import type { JudgmentGraph } from "@/core/types";
 
 export const DISCLAIMER =
@@ -132,8 +132,9 @@ export function buildEquipmentGraph({ threshold, windowHours }: PolicySettings):
       label: "알람이 반복되는가?",
       description: `최근 ${windowHours}시간 압력 경고가 ${threshold}회 이상인지 집계합니다.`,
       dependencies: [],
-      resolver_type: "CODE",
+      resolver_type: "RULE",
       resolver_config: {
+        kind: "function",
         fn: "countAlarmsInWindow",
         params: { type: "압력 경고", windowHours, threshold },
         reads: ["input.evaluation_time", "input.alarm_history"],
@@ -196,7 +197,7 @@ export function clampSettings(raw: Partial<Record<keyof PolicySettings, unknown>
   };
 }
 
-// ---------- CODE resolver functions ----------
+// ---------- Rule functions (deterministic) ----------
 
 const LINE = /^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2}) (.+)$/;
 
@@ -206,7 +207,7 @@ function parseTime(text: string): number {
   return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
 }
 
-export const EQUIPMENT_CODE: CodeRegistry = {
+export const EQUIPMENT_FUNCTIONS: RuleFunctions = {
   countAlarmsInWindow(params, ctx) {
     const type = String(params.type);
     const windowHours = Number(params.windowHours);

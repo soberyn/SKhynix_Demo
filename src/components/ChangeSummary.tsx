@@ -18,12 +18,15 @@ export function ChangeSummary({
   prev,
   benefit,
   llmOnlyNote,
+  onCompare,
 }: {
   graph: JudgmentGraph;
   run: RunResult;
   prev: RunResult;
   benefit?: string;
   llmOnlyNote?: string;
+  /** Runs AI-only mode on the same input. */
+  onCompare?: () => void;
 }) {
   const nodes = graph.nodes;
   const reused = nodes.filter((n) => run.states[n.id]?.reused);
@@ -33,8 +36,8 @@ export function ChangeSummary({
     .map((n) => ({ n, c: nodeChange(run, prev, n.id) }))
     .filter((x) => x.c && x.n.id !== graph.decision_node);
   const decisionChange = nodeChange(run, prev, graph.decision_node);
-  // Say what actually answered the AI step, so a prepared answer is never counted as a live AI call.
-  const SOURCE_NAME = { live: "실제 AI 응답", recorded: "기록된 실제 AI 응답", fallback: "준비된 예시 답변", mock: "시뮬레이션" } as const;
+  // Say what actually answered the LLM step, so a prepared answer is never counted as a live LLM call.
+  const SOURCE_NAME = { live: "실제 LLM 응답", recorded: "기록된 실제 LLM 응답", fallback: "준비된 예시 답변", mock: "시뮬레이션" } as const;
   const aiSources = [
     ...new Set(
       nodes
@@ -83,7 +86,7 @@ export function ChangeSummary({
           </span>
         )}
         <span>
-          AI 단계 실행 <b>{run.llmCalls}회</b>
+          LLM 단계 실행 <b>{run.llmCalls}회</b>
           {aiSources.length > 0 && <span className={s.muted}> ({aiSources.join(", ")})</span>}
         </span>
       </div>
@@ -94,6 +97,11 @@ export function ChangeSummary({
       )}
       {benefit && <p className={s.changeBenefit}>{benefit}</p>}
       {llmOnlyNote && <p className={s.changeNote}>↔ {llmOnlyNote}</p>}
+      {onCompare && (
+        <button type="button" className={`${s.small} ${s.compareBtn}`} onClick={onCompare}>
+          같은 입력으로 LLM 단독 판단해 보기 →
+        </button>
+      )}
     </div>
   );
 }
