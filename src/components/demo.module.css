@@ -1,0 +1,1055 @@
+.page {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 20px 20px 48px;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+}
+
+.disclaimer {
+  margin: 10px 0 14px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--line-2);
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.modes {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.mode,
+.modeOn {
+  border: 0;
+  padding: 7px 14px;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 550;
+}
+
+.mode {
+  color: var(--ink-2);
+}
+
+.modeOn {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------- layout ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr) 390px;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+}
+
+.subTitle {
+  margin: 16px 0 8px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.caption {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+/* ---------- input ---------- */
+
+.field {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: #fbfbfc;
+  font-family: var(--mono);
+  font-size: 12px;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.primary,
+.secondary {
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-weight: 650;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.primary {
+  flex: 1;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.secondary {
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---------- DAG ---------- */
+
+.center {
+  overflow: hidden;
+}
+
+.dagScroll {
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.dag {
+  position: relative;
+  margin: 0 auto;
+}
+
+.edges {
+  position: absolute;
+  inset: 0;
+}
+
+.node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.decisionNode {
+  border-width: 2px;
+}
+
+.nodeHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.nodeLabel {
+  font-weight: 650;
+  font-size: 15px;
+}
+
+.nodeResult {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.resultValue {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.st_RUNNING {
+  border-color: var(--run);
+  background: var(--run-bg);
+}
+
+.st_SUCCEEDED {
+  border-color: var(--ok);
+}
+
+.st_FAILED {
+  border-color: var(--fail);
+  background: var(--fail-bg);
+}
+
+.st_BLOCKED {
+  border-color: var(--block);
+  border-style: dashed;
+  background: var(--block-bg);
+}
+
+.graphCheck {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--ok);
+}
+
+.failBanner {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--fail-bg);
+  color: var(--fail);
+  font-size: 13px;
+}
+
+/* ---------- badges / pills ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.badge_RULE {
+  color: var(--rule);
+  background: var(--rule-bg);
+}
+
+.badge_CODE {
+  color: var(--code);
+  background: var(--code-bg);
+}
+
+.badge_LLM {
+  color: var(--llm);
+  background: var(--llm-bg);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.pill_READY,
+.pill_RUNNING {
+  color: var(--run);
+}
+
+.pill_SUCCEEDED {
+  color: var(--ok);
+}
+
+.pill_FAILED {
+  color: var(--fail);
+}
+
+.pill_BLOCKED {
+  color: var(--block);
+}
+
+.source {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.source_live {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.source_fallback {
+  background: var(--block-bg);
+  color: var(--block);
+}
+
+.source_mock {
+  background: var(--fail-bg);
+  color: var(--fail);
+}
+
+.errorText {
+  color: var(--fail);
+}
+
+/* ---------- decision / trace ---------- */
+
+.decision {
+  padding: 12px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+}
+
+.decisionIdle {
+  border: 1.5px dashed var(--line-2);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.decisionBlocked {
+  border-color: var(--fail);
+  background: var(--fail-bg);
+}
+
+.decisionLabel {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.decisionValue {
+  margin: 2px 0 4px;
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 750;
+}
+
+.decisionNote {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.trace {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.traceItem {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.traceHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.traceOrder {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.traceLabel {
+  flex: 1;
+  font-weight: 650;
+}
+
+.traceBody {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 3px 8px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.traceBody dt {
+  color: var(--ink-3);
+}
+
+.traceBody dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.traceResult {
+  margin-left: 8px;
+  font-family: var(--mono);
+}
+
+.evidence {
+  margin: 0;
+  padding-left: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* ---------- LLM only ---------- */
+
+.llmOnlyFlow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+}
+
+.flowBox {
+  width: min(380px, 100%);
+  padding: 12px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.flowLLM {
+  border-color: var(--llm);
+  background: var(--llm-bg);
+}
+
+.flowArrow {
+  color: var(--edge);
+  font-size: 18px;
+}
+
+.llmReason {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+/* ---------- comparison / more ---------- */
+
+.compare {
+  margin-top: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.table thead th {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table tbody th {
+  width: 200px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.more {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.more details {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.more summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.moreBody {
+  padding-top: 6px;
+  color: var(--ink-2);
+}
+
+.moreBody p {
+  margin: 6px 0;
+}
+
+/* ---------- policy table ---------- */
+
+.policy {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.policy .table th,
+.policy .table td {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.policy .table thead th {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.matchedRow td {
+  background: var(--ok-bg);
+  font-weight: 700;
+}
+
+.nodeHow {
+  flex-basis: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* ---------- guide / legend ---------- */
+
+.guide {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .guide {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guide li {
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.guide b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.legendTitle {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legendSep {
+  width: 1px;
+  height: 16px;
+  background: var(--line-2);
+}
+
+.fieldHint {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* Korean text: the mono font has no Hangul, so text-heavy values use the sans font with tabular digits. */
+.mono,
+.evidence,
+.decisionValue,
+.resultValue,
+.traceResult,
+.policy .table td,
+.field input,
+.field textarea {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- missions ---------- */
+
+.missions {
+  margin: 0 0 12px;
+}
+
+.missionsTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.missionsTitle .muted {
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.missionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .missionGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.missionCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  text-align: left;
+  font-weight: 650;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.missionCard:hover {
+  border-color: var(--accent);
+}
+
+.missionOn {
+  border-color: var(--accent);
+  background: var(--run-bg);
+}
+
+.missionNo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+}
+
+.missionHint {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--run-bg);
+  color: var(--run);
+  font-size: 13px;
+}
+
+/* ---------- input controls ---------- */
+
+.fieldChanged {
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+  margin-left: -11px;
+}
+
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  min-width: 0;
+}
+
+.fieldset legend {
+  padding: 0;
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sliderRow input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.numBox {
+  width: 72px !important;
+  flex: none;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  padding: 1px 0;
+  cursor: pointer;
+}
+
+.strike {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.addRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.addRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.small {
+  padding: 3px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--panel);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.small:hover {
+  border-color: var(--accent);
+}
+
+.smallOn {
+  border-color: var(--accent);
+  background: var(--run-bg);
+  color: var(--run);
+  font-weight: 700;
+}
+
+.segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.seg,
+.segOn {
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--panel);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.segOn {
+  border-color: var(--llm);
+  background: var(--llm-bg);
+  color: var(--llm);
+  font-weight: 700;
+}
+
+.notePreview {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fbfbfc;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+.fieldNote {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.stepper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.stepperCtl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pendingList {
+  margin: 10px 0 0;
+  padding: 8px 10px 8px 26px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--run);
+}
+
+.primaryPulse {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------- change tracking ---------- */
+
+.nodeChanged {
+  box-shadow: 0 0 0 3px var(--run-bg), 0 0 0 4.5px var(--accent);
+}
+
+.nodeReused {
+  opacity: 0.72;
+}
+
+.changedTag,
+.reusedTag,
+.humanTag {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.changedTag {
+  background: var(--accent);
+  color: #fff;
+}
+
+.reusedTag {
+  background: var(--bg);
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+}
+
+.humanTag {
+  background: #efe7fb;
+  color: var(--code);
+}
+
+.nodeHead {
+  flex-wrap: nowrap;
+}
+
+.changeCard {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+  background: var(--run-bg);
+  font-size: 13px;
+}
+
+.changeTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--run);
+}
+
+.changeDecision {
+  margin: 4px 0 6px;
+  font-size: 14px;
+}
+
+.changeList {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
+.changeStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 6px 0;
+  border-top: 1px solid #cdd8f6;
+  border-bottom: 1px solid #cdd8f6;
+  color: var(--ink-2);
+}
+
+.changeNote {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.changeBenefit {
+  margin: 8px 0 0;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.overrideRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+}
+
+.pendingText {
+  color: var(--run);
+  font-weight: 650;
+}
+
+.field input[type="checkbox"],
+.field input[type="range"] {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.field input[type="checkbox"] {
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.source_recorded {
+  background: var(--rule-bg);
+  color: var(--rule);
+}
