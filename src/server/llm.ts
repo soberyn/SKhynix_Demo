@@ -59,7 +59,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 async function failure(provider: string, res: Response): Promise<HttpError> {
   const body = await res.text().catch(() => "");
-  return new HttpError(`${provider} API ${res.status}: ${body.slice(0, 200)}`, res.status);
+  return new HttpError(`${provider} API ${res.status}: ${body.slice(0, 1500)}`, res.status);
 }
 
 async function gemini(config: LiveConfig, system: string, user: string): Promise<string> {
@@ -142,7 +142,10 @@ const hits = new Map<string, number[]>();
 
 /** Best-effort in-memory rate limit per IP (per server instance). */
 export function rateLimited(request: Request): boolean {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "local";
+  // Requests from this machine (measurement and recording scripts against the dev server) are not limited.
+  // Note: the Next.js dev server sets x-forwarded-for to the loopback address, so checking for a missing header is not enough.
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim();
+  if (!ip || ["::1", "127.0.0.1", "::ffff:127.0.0.1"].includes(ip)) return false;
   const now = Date.now();
   const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
   recent.push(now);

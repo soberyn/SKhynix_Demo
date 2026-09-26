@@ -8,7 +8,9 @@ const store = JSON.parse(readFileSync(FILE, "utf8"));
 const notes = new Set(SCENARIOS.flatMap((sc) => sc.fields.flatMap((f) => (f.kind === "note" ? f.presets.map((p) => `${sc.id}\u0000${p.text}`) : []))));
 const keys = new Set(
   SCENARIOS.flatMap((sc) =>
-    [sc.exampleDraft, ...sc.missions.map((m) => m.apply(sc.exampleDraft).draft)].map((d) => llmOnlyKey(sc, toInput(sc, d), d.settings)),
+    [sc.exampleDraft, ...sc.missions.map((m) => m.apply(sc.exampleDraft).draft), ...sc.cases.map((c) => c.apply(sc.exampleDraft))].map((d) =>
+      llmOnlyKey(sc, toInput(sc, d), d.settings),
+    ),
   ),
 );
 const before = [store.judge.length, store.llmOnly.length];

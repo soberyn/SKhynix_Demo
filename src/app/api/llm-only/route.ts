@@ -44,16 +44,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // LLM-only also reports its answer to each step of the judgment graph, so the two approaches can be compared
+  // step by step. It still reads the whole input and decides everything itself; the list only names the steps.
+  const graph = scenario.buildGraph(settings);
+  const steps = graph.nodes.filter((n) => n.id !== graph.decision_node).map((n) => n.label);
   const system = [
     scenario.llmOnlyRole,
     "Reply with a single JSON object and nothing else:",
-    '{"action": string (exactly one of the outcomes named in the policy, copied verbatim), "reason": string (in Korean)}',
+    '{"checks": {"<each step question, copied verbatim>": "예" | "아니오"}, "action": string (exactly one of the outcomes named in the policy, copied verbatim), "reason": string (in Korean)}',
   ].join("\n");
   const user = [
     "정책:",
     scenario.policyText(settings),
     "",
     ...scenario.fields.map((f) => `${fieldLabel(scenario, f.key)}:\n${input[f.key]}`),
+    "",
+    "각 단계에 대한 판단도 checks에 함께 보고하십시오:",
+    ...steps.map((q) => `- ${q}`),
   ].join("\n");
 
   try {

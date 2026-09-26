@@ -167,3 +167,35 @@ Format: Problem · Hypothesis · AI suggestion · Alternatives · Decision · Re
 
 - **Problem**: In the override missions, only LLM + rules receives the person's decision, so the two conclusions differ by construction. The screen showed "⚠ 결론이 다릅니다", which would misattribute the difference.
 - **Fix**: When a human decided a node, the comparison bar explains that the override applies only to LLM + rules and that the difference is not an LLM-only mistake.
+
+## 26. Show correctness against a known answer, measured over repeated runs
+
+- **Problem (raised by the user)**: The demo compared the two approaches only with each other. The intent is that each input has a correct answer, LLM-only is probabilistic and is sometimes wrong, and LLM + rules is accurate.
+- **Decision**: (1) Every input built from prepared texts has a correct outcome — the same graph with each LLM node answered by the intended reading of its prepared text (`groundTruth`). The comparison bar shows it with ✓/✗. (2) Each scenario has a set of benchmark cases; `npm run benchmark` judges each case N times with both approaches using a live LLM and stores the counts (and, for LLM + rules, which node was wrong). The demo shows these rates; single runs remain live.
+- **Honesty**: LLM + rules can still be wrong at its LLM step; if so, the table names the step. Results are stored as measured.
+
+## 27. More realistic, record-heavy inputs
+
+- **Problem (raised by the user)**: The first cases were too easy — LLM-only answered the tax example correctly 5/5 — so the comparison could not show anything.
+- **Decision**: Make the inputs look like real work rather than tuning prompts: the tax scenario takes a household house list (separate households, houses sold before/after the transfer date) and a move-in/move-out history whose stays are summed by a rule; the LLM judges only the free-text circumstances. The equipment scenario takes three days of alarms (similar-looking types, alarms minutes outside the window, one after the evaluation time).
+- **Note**: While writing the case titles, the author (the assistant) miscounted two alarm windows by hand — shifting the evaluation time also shifts the start of the 24-hour window. The titles were corrected from the rule's output. Counting is exactly the kind of step that belongs to a rule.
+
+## 28. Interlocking problems, compared step by step
+
+- **Problem (raised by the user)**: Cases that each changed one condition of the example looked like isolated single-step checks, so the DAG — several judgments combined through dependencies — added nothing visible. The per-case "1/3" and the total "12/30" were also not self-explanatory.
+- **Decision (user)**: A few complete problems per scenario in which several conditions interact (e.g. a house sold ten days before the transfer, a separate household, a residence history split into three stays, a high price and a "weekday away" note — all in one input). Each problem lists its traps.
+- **Step-level comparison**: LLM-only additionally reports its answer to every step of the graph (it is only given the step questions; it computes everything itself and still decides the outcome). This gives LLM-only more help than before, which makes any remaining error a stronger result. The comparison bar and the benchmark show, per step: the correct result, LLM + rules, and LLM-only.
+- **Recording**: Every wrong run is stored with its outcome, the steps it got wrong (reported vs correct) and the full explanation — including runs whose outcome was right but whose steps were not.
+- **Wording**: "문제 N개를 각각 M번씩, 모두 K번", and "M번 중 k번 정답" per row.
+
+## 29. Benchmark result (10 runs per problem, gemini-3.1-flash-lite)
+
+- **Tax**: LLM + rules 40/40 · LLM-only 25/40 (63%). Problem 1: LLM-only summed the three stays as ~670 days (actual 916) in all 10 runs → wrong outcome 10/10. Problem 3: outcome right 10/10 but the residence-days step wrong 10/10 (right answer for a wrong reason). Problem 4: applied the residence requirement although it does not apply outside an adjusted area, 5/10.
+- **Equipment**: LLM + rules 40/40 · LLM-only 30/40 (75%). Problem 2: counted "5 or more" warnings in a window that holds 4, 10/10. Problem 3: outcome right 10/10, but alarm and sensor steps wrong 4/10.
+- LLM + rules: every outcome and every step correct in all 80 runs (its LLM steps also agreed with the intended readings).
+
+## 30. Our own rate limit throttled the measurement
+
+- **Problem**: Many "quota waits" during measurement were not the provider's quota. The Next.js dev server sets `x-forwarded-for: ::1` on local requests, so the "no header → local" exemption did not apply and local scripts hit our 30-requests-per-10-minutes limit; the API then answered 503 instantly.
+- **Fix**: Loopback addresses are exempt. Deployed visitors are still limited.
+- **Also**: A full `/tmp` (another project's session used 23 GB of the shared per-user quota) made the shell and log writes fail; the benchmark kept saving to the project and was resumed. Long-running logs now go to the project folder.

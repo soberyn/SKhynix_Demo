@@ -9,7 +9,9 @@ import type { ExecutionStatus, NodeState, Override, ResolverType, RunResult } fr
 import { validateGraph } from "@/core/validate";
 import { httpLLM, malformedLLM } from "@/lib/http-llm";
 import { SCENARIOS, getScenario } from "@/scenario";
-import { noteText, toInput, type Draft, type Mission, type Scenario } from "@/scenario/types";
+import { groundTruth } from "@/scenario/truth";
+import { noteText, toInput, type BenchCase, type Draft, type Mission, type Scenario } from "@/scenario/types";
+import { BenchmarkPanel } from "./BenchmarkPanel";
 import { ChangeSummary, nodeChange } from "./ChangeSummary";
 import { DagView } from "./DagView";
 import { InputPanel } from "./InputPanel";
@@ -17,7 +19,7 @@ import { LLMOnlyPanel } from "./LLMOnlyPanel";
 import { PolicyTable } from "./PolicyTable";
 import { ResultCompare, type LLMOnlyResult } from "./ResultCompare";
 import { TracePanel } from "./TracePanel";
-import { RESOLVER_MEANING, ResolverBadge, STATUS_TEXT, StatusPill } from "./bits";
+import { RESOLVER_MEANING, ResolverBadge, STATUS_TEXT, StatusPill, formatValue } from "./bits";
 import s from "./demo.module.css";
 
 /** Human-readable list of what differs between the applied state and the draft. */
@@ -66,6 +68,8 @@ export function Demo() {
   const [llmOnly, setLlmOnly] = useState<LLMOnlyResult | null>(null);
   const [llmRunning, setLlmRunning] = useState(false);
   const [tab, setTab] = useState<"llm-only" | "hetero">("hetero");
+  /** Correct outcome and step results of the last judged input (unknown for custom text or with a human override). */
+  const [truth, setTruth] = useState<{ decision: string; nodes: Record<string, string> } | undefined>(undefined);
 
   const graph = useMemo(() => scenario.buildGraph(draft.settings), [scenario, draft.settings]);
   const graphErrors = useMemo(() => validateGraph(graph), [graph]);
@@ -98,7 +102,11 @@ export function Demo() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setLlmOnly({ ok: false, error: data.error ?? `요청 실패 (${res.status})` });
-      const schema = z.object({ action: z.enum(sc.actions as [string, ...string[]]), reason: z.string().min(1) });
+      const schema = z.object({
+        action: z.enum(sc.actions as [string, ...string[]]),
+        reason: z.string().min(1),
+        checks: z.record(z.string(), z.string()).optional(),
+      });
       const parsed = schema.safeParse(data.raw);
       if (!parsed.success)
         return setLlmOnly({ ok: false, error: "LLM의 답이 약속된 형식과 달라 결과로 쓸 수 없습니다.", model: data.model });
@@ -119,6 +127,16 @@ export function Demo() {
   ): Promise<RunResult> => {
     setRunning(true);
     setFailureDemo(!!opts.failure);
+    setTruth(undefined);
+    if (!opts.failure && Object.keys(o).length === 0)
+      void groundTruth(sc, d).then((t) =>
+        setTruth(
+          t && {
+            decision: String(t.decision),
+            nodes: Object.fromEntries(Object.entries(t.nodes).map(([k, v]) => [k, formatValue(v)])),
+          },
+        ),
+      );
     // LLM Only runs on the same input at the same time, so both conclusions appear side by side.
     if (opts.failure) setLlmOnly(null);
     else void runLLMOnly(sc, d);
@@ -159,6 +177,7 @@ export function Demo() {
     setLlmOnly(null);
     setFailureDemo(false);
     setMission(null);
+    setTruth(undefined);
   };
 
   const switchScenario = (id: string) => {
@@ -180,6 +199,17 @@ export function Demo() {
     setOverrides(next.overrides ?? {});
   };
 
+  /** Loads a benchmark case into the input and judges it once with both approaches. */
+  const runCase = (c: BenchCase) => {
+    track("bench_case", { scenario: scenario.id, id: c.id });
+    const d = c.apply(scenario.exampleDraft);
+    setMission(null);
+    setOverrides({});
+    setDraft(d);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return execute(scenario, d, {}, httpLLM(scenario.id), { previous: null });
+  };
+
   const runFailure = () => {
     track("failure_example", { scenario: scenario.id });
     setMission(null);
@@ -193,7 +223,7 @@ export function Demo() {
     setOverrides(next);
   };
 
-  // ?s=<scenario>&run=example | failure | mission-<id> starts on load (direct links and portfolio screenshots).
+  // ?s=<scenario>&run=example | failure | mission-<id> | problem-<id> starts on load (direct links and portfolio screenshots).
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const sc = getScenario(q.get("s")) ?? SCENARIOS[0];
@@ -207,6 +237,12 @@ export function Demo() {
       if (r === "failure") void execute(sc, sc.exampleDraft, {}, malformedLLM, { previous: null, failure: true });
       const m = sc.missions.find((x) => r === `mission-${x.id}`);
       if (m) void startMission(sc, m);
+      const c = sc.cases.find((x) => r === `problem-${x.id}`);
+      if (c) {
+        const d = c.apply(sc.exampleDraft);
+        setDraft(d);
+        void execute(sc, d, {}, httpLLM(sc.id), { previous: null });
+      }
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -319,6 +355,7 @@ export function Demo() {
             llmOnly={llmOnly}
             llmRunning={llmRunning}
             failureDemo={failureDemo}
+            truth={truth}
           />
 
           <div className={s.tabs} role="tablist" aria-label="판단 방식">
@@ -343,7 +380,7 @@ export function Demo() {
 
           <section className={`${s.panel} ${s.tabBody}`} aria-label={tab === "hetero" ? "LLM + 규칙" : "LLM 단독"}>
             {tab === "llm-only" ? (
-              <LLMOnlyPanel scenario={scenario} result={failureDemo ? null : llmOnly} running={llmRunning} />
+              <LLMOnlyPanel scenario={scenario} result={failureDemo ? null : llmOnly} running={llmRunning} truth={truth} />
             ) : (
               <div className={s.tabGrid}>
                 <div className={s.tabCol}>
@@ -396,6 +433,8 @@ export function Demo() {
           </section>
         </div>
       </main>
+
+      <BenchmarkPanel scenario={scenario} onRunCase={runCase} disabled={running} />
 
       {run && <Comparison llmScope={llmNodeLabels.join(", ")} />}
 

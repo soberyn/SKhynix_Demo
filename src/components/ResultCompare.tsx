@@ -6,6 +6,8 @@ export interface LLMOnlyResult {
   ok: boolean;
   action?: string;
   reason?: string;
+  /** LLM-only's own answer to each step of the graph, keyed by the step question. */
+  checks?: Record<string, string>;
   error?: string;
   model?: string;
   source?: "live" | "recorded";
@@ -24,6 +26,7 @@ export function ResultCompare({
   llmOnly,
   llmRunning,
   failureDemo,
+  truth,
 }: {
   graph: JudgmentGraph;
   run: RunResult | null;
@@ -31,7 +34,10 @@ export function ResultCompare({
   llmOnly: LLMOnlyResult | null;
   llmRunning: boolean;
   failureDemo: boolean;
+  /** The correct outcome and step results for the judged input, when known (prepared texts, no human override). */
+  truth?: { decision: string; nodes: Record<string, string> };
 }) {
+  const expected = truth?.decision;
   if (!run && !running)
     return (
       <div className={`${s.decision} ${s.decisionIdle}`}>
@@ -49,27 +55,24 @@ export function ResultCompare({
   const bothDone = structured !== undefined && llm !== undefined && !failureDemo && !humanDecided;
   const same = bothDone && structured === llm;
 
-  const facts = run
-    ? graph.nodes
-        .filter((n) => n.id !== graph.decision_node)
-        .map((n) => {
-          const st = run.states[n.id];
-          return {
-            label: n.label,
-            value: st?.status === "SUCCEEDED" ? formatValue(st.output?.result) : st?.status,
-            how: st?.output?.human ? "사람이 직접 지정" : st?.output?.explanation,
-            llm: n.resolver_type === "LLM",
-          };
-        })
-    : [];
+
+  const mark = (v: string | undefined) =>
+    expected && v && v !== "판단 중…" ? (v === expected ? <span className={s.okMark}>✓ 정답</span> : <span className={s.badMark}>✗ 오답</span>) : null;
 
   return (
     <div className={s.compareWrap}>
+      {expected && !running && (
+        <div className={s.expectedBar}>
+          <span className={s.decisionLabel}>이 입력의 정답</span> <b>{expected}</b>
+          <span className={s.muted}> — 규칙과 기록의 의도된 해석으로 정해진 답</span>
+        </div>
+      )}
       <div className={s.compareGrid}>
         <div className={`${s.compareCell} ${s.compareLLM}`}>
           <div className={s.decisionLabel}>LLM 단독</div>
           <div className={s.compareValue}>
-            {failureDemo ? "—" : llmRunning ? "판단 중…" : llmOnly ? (llmOnly.ok ? llmOnly.action : "결과 없음") : "—"}
+            {failureDemo ? "—" : llmRunning ? "판단 중…" : llmOnly ? (llmOnly.ok ? llmOnly.action : "결과 없음") : "—"}{" "}
+            {!llmRunning && !failureDemo && mark(llm)}
           </div>
           <div className={s.compareSub}>
             {llmOnly?.ok ? (
@@ -83,7 +86,9 @@ export function ResultCompare({
         </div>
         <div className={`${s.compareCell} ${structured === "판단 불가" ? s.compareFail : ""}`}>
           <div className={s.decisionLabel}>LLM + 규칙</div>
-          <div className={s.compareValue}>{running || !run ? "판단 중…" : structured}</div>
+          <div className={s.compareValue}>
+            {running || !run ? "판단 중…" : structured} {!running && !humanDecided && mark(structured)}
+          </div>
           <div className={s.compareSub}>판단을 나눠 규칙과 LLM으로 실행</div>
         </div>
       </div>
@@ -108,23 +113,13 @@ export function ResultCompare({
       )}
       {llmOnly && !llmOnly.ok && !failureDemo && <p className={s.changeNote}>LLM 단독: {llmOnly.error}</p>}
 
-      {bothDone && !same && (
+      {run && !running && !failureDemo && (
+        <StepTable graph={graph} run={run} llmOnly={llmOnly} truth={truth} humanDecided={humanDecided} />
+      )}
+      {bothDone && !same && llmOnly?.reason && (
         <div className={s.divergence}>
-          <div>
-            <div className={s.divTitle}>LLM + 규칙이 확인한 것</div>
-            <ul className={s.factList}>
-              {facts.map((f) => (
-                <li key={f.label}>
-                  <b>{f.label}</b> {f.value}
-                  <span className={s.muted}> — {f.how}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <div className={s.divTitle}>LLM 단독의 설명 (전체)</div>
-            <p className={s.llmReason}>{llmOnly?.reason}</p>
-          </div>
+          <div className={s.divTitle}>LLM 단독의 설명 (전체)</div>
+          <p className={s.llmReason}>{llmOnly.reason}</p>
         </div>
       )}
       {bothDone && same && llmOnly?.reason && (
@@ -138,5 +133,61 @@ export function ResultCompare({
         <p className={s.decisionNote}>가상의 데모 정책에 따른 결과이며, 실제 운영 권고가 아닙니다.</p>
       )}
     </div>
+  );
+}
+
+/** Every step of the graph: the correct result, LLM + rules, and what LLM-only reported for the same step. */
+function StepTable({
+  graph,
+  run,
+  llmOnly,
+  truth,
+  humanDecided,
+}: {
+  graph: JudgmentGraph;
+  run: RunResult;
+  llmOnly: LLMOnlyResult | null;
+  truth?: { decision: string; nodes: Record<string, string> };
+  humanDecided: boolean;
+}) {
+  const steps = graph.nodes.filter((n) => n.id !== graph.decision_node);
+  const cell = (value: string | undefined, correct: string | undefined) => {
+    if (value === undefined) return <span className={s.muted}>—</span>;
+    const mark = correct === undefined ? null : value === correct ? <span className={s.okMark}>✓</span> : <span className={s.badMark}>✗</span>;
+    return (
+      <>
+        {value} {mark}
+      </>
+    );
+  };
+  return (
+    <table className={`${s.table} ${s.stepTable}`}>
+      <thead>
+        <tr>
+          <th>판단 단계</th>
+          {truth && <th>정답</th>}
+          <th>LLM 단독이 보고한 판단</th>
+          <th>LLM + 규칙</th>
+        </tr>
+      </thead>
+      <tbody>
+        {steps.map((n) => {
+          const st = run.states[n.id];
+          const het = st?.status === "SUCCEEDED" ? formatValue(st.output?.result) : st?.status;
+          const llm = llmOnly?.ok ? llmOnly.checks?.[n.label] : undefined;
+          const correct = truth?.nodes[n.id];
+          return (
+            <tr key={n.id}>
+              <th>
+                {n.label} <span className={s.muted}>{n.resolver_type === "LLM" ? "(LLM)" : "(규칙)"}</span>
+              </th>
+              {truth && <td>{correct}</td>}
+              <td>{cell(llm, correct)}</td>
+              <td>{cell(het, humanDecided ? undefined : correct)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

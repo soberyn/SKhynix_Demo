@@ -29,7 +29,7 @@ describe("equipment scenario", () => {
     const byNode = Object.fromEntries(r.trace.map((t) => [t.nodeId, t]));
     expect(byNode.pressure_abnormal).toMatchObject({ resolverType: "RULE", result: true, explanation: "12.7 > 10 → 예" });
     expect(byNode.repeated_alarm).toMatchObject({ resolverType: "RULE", result: true });
-    expect(byNode.repeated_alarm.explanation).toBe('최근 24시간 "압력 경고" 4회 (기준 3회 이상) → 예');
+    expect(byNode.repeated_alarm.explanation).toBe('최근 24시간 "압력 경고" 5회 (기준 5회 이상) → 예');
     expect(byNode.sensor_fault_evidence).toMatchObject({ resolverType: "LLM", result: false });
     expect(r.trace[r.trace.length - 1].nodeId).toBe("equipment_action");
   });
@@ -37,9 +37,12 @@ describe("equipment scenario", () => {
   it("the alarm rule excludes other alarm types and alarms outside the window", async () => {
     const r = await run(EXAMPLE_INPUT);
     const ev = r.states.repeated_alarm.output?.evidence ?? [];
-    expect(ev.filter((e) => e.startsWith("집계:"))).toHaveLength(4);
+    expect(ev.filter((e) => e.startsWith("집계:"))).toHaveLength(5);
     expect(ev).toContain("제외: 2026-09-26 12:30 펌프 온도 경고  (다른 유형)");
-    expect(ev).toContain("제외: 2026-09-24 22:05 압력 경고  (24시간 범위 밖)");
+    expect(ev).toContain("제외: 2026-09-25 17:55 압력 경고  (24시간 범위 밖)");
+    expect(ev).toContain("제외: 2026-09-26 18:05 압력 경고  (24시간 범위 밖)");
+    expect(ev).toContain("제외: 2026-09-26 02:04 압력 경고 해제  (다른 유형)");
+    expect(ev).toContain("제외: 2026-09-26 14:08 압력 센서 통신 경고  (다른 유형)");
   });
 
   it("the LLM only sees the maintenance records", async () => {
@@ -143,7 +146,7 @@ describe("user benefits: change tracking, human override, policy change", () => 
   it("changing a rule value recomputes only the node that uses it", async () => {
     const { llm } = counting();
     const first = await runGraph(EQUIPMENT_GRAPH, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm });
-    const stricter = buildEquipmentGraph({ ...DEFAULT_SETTINGS, threshold: 5 });
+    const stricter = buildEquipmentGraph({ ...DEFAULT_SETTINGS, threshold: 6 });
     const second = await runGraph(stricter, EXAMPLE_INPUT, { functions: EQUIPMENT_FUNCTIONS, llm, previous: first });
     expect(second.states.repeated_alarm.reused).toBeFalsy();
     expect(second.states.repeated_alarm.output?.result).toBe(false);

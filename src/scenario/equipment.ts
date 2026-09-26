@@ -3,7 +3,7 @@
 
 import type { RuleFunctions } from "@/core/resolvers";
 import type { JudgmentGraph } from "@/core/types";
-import type { Draft, Mission, NotePreset, Scenario, Settings } from "./types";
+import type { BenchCase, Draft, Mission, NotePreset, Scenario, Settings } from "./types";
 
 export const DISCLAIMER =
   "구조를 보여주기 위해 단순화한 가상의 설비 시나리오입니다. 실제 SK하이닉스의 공정이나 SOP를 나타내지 않습니다.";
@@ -21,13 +21,21 @@ export const EXAMPLE_INPUT: EquipmentInput = {
   pressure: "12.7",
   pressure_limit: "10.0",
   evaluation_time: "2026-09-26 18:00",
+  // Three days of alarms, as an operator would see them: similar-looking types, alarms just outside
+  // the window, and one after the evaluation time. Pressure warnings inside the 24h window: 5.
   alarm_history: [
-    "2026-09-24 22:05 압력 경고",
+    "2026-09-25 09:40 압력 경고",
+    "2026-09-25 17:55 압력 경고",
+    "2026-09-25 18:10 압력 경고",
+    "2026-09-25 23:32 펌프 온도 경고",
+    "2026-09-26 02:03 압력 경고",
+    "2026-09-26 02:04 압력 경고 해제",
     "2026-09-26 09:13 압력 경고",
     "2026-09-26 11:42 압력 경고",
     "2026-09-26 12:30 펌프 온도 경고",
-    "2026-09-26 14:08 압력 경고",
+    "2026-09-26 14:08 압력 센서 통신 경고",
     "2026-09-26 17:21 압력 경고",
+    "2026-09-26 18:05 압력 경고",
   ].join("\n"),
   maintenance_note: "", // set below from NOTE_PRESETS[0]
 };
@@ -107,7 +115,7 @@ export interface PolicySettings extends Settings {
   windowHours: number;
 }
 
-export const DEFAULT_SETTINGS: PolicySettings = { threshold: 3, windowHours: 24 };
+export const DEFAULT_SETTINGS: PolicySettings = { threshold: 5, windowHours: 24 };
 
 export function buildEquipmentGraph({ threshold, windowHours }: Settings): JudgmentGraph {
   return {
@@ -257,9 +265,9 @@ const MISSIONS: Mission[] = [
   },
   {
     id: "policy",
-    title: "알람 기준이 5회로 바뀌면?",
-    what: "규칙 값 ‘알람 기준 횟수’를 3회 → 5회로 바꿨습니다.",
-    apply: (d) => ({ draft: { ...d, settings: { ...d.settings, threshold: 5 } } }),
+    title: "알람 기준이 6회로 바뀌면?",
+    what: "규칙 값 ‘알람 기준 횟수’를 5회 → 6회로 바꿨습니다.",
+    apply: (d) => ({ draft: { ...d, settings: { ...d.settings, threshold: 6 } } }),
     benefit: "바뀐 규칙 값은 그 값을 쓰는 규칙 단계 하나에만 반영됩니다. 같은 입력이면 언제나 같은 결과이고, LLM은 부르지 않았습니다.",
     llmOnly: "LLM 단독이라면 정책 문장을 고쳐 다시 묻고, 알람 횟수를 정확히 세어 새 기준을 적용했는지 설명문을 읽어 확인해야 합니다.",
   },
@@ -270,6 +278,52 @@ const MISSIONS: Mission[] = [
     apply: (d) => ({ draft: { ...d, notes: { ...d.notes, maintenance_note: { presetId: "suspect", custom: "" } } } }),
     benefit: "LLM 단계는 바뀐 정비 기록을 읽는 그 한 단계만 다시 실행되었고, 압력·알람 판단은 재사용되었습니다.",
     llmOnly: "LLM 단독이라면 기록 하나만 바뀌어도 모든 조건을 처음부터 다시 판단합니다.",
+  },
+];
+
+const withValues = (v: Record<string, string>) => (d: Draft): Draft => ({ ...d, values: { ...d.values, ...v } });
+const withSettings = (v: Partial<PolicySettings>) => (d: Draft): Draft => ({ ...d, settings: { ...d.settings, ...v } as Settings });
+
+const withNote = (presetId: string) => (d: Draft): Draft => ({ ...d, notes: { ...d.notes, maintenance_note: { presetId, custom: "" } } });
+const compose = (...fs: ((d: Draft) => Draft)[]) => (d: Draft) => fs.reduce((acc, f) => f(acc), d);
+
+/** Problems in which several conditions interact. The correct outcome follows from the rules and the prepared readings. */
+const CASES: BenchCase[] = [
+  {
+    id: "p1",
+    title: "문제 1 · 기준을 살짝 넘는 압력 · 경계에 걸린 알람",
+    traps: [
+      "압력 10.4 > 기준 10.0 → 압력 이상",
+      "24시간 범위 시작(전날 18:00) 5분 전 알람과 판단 시각 뒤 알람은 제외 → 압력 경고 5회 = 기준 5회",
+      "‘압력 경고 해제’, ‘압력 센서 통신 경고’는 다른 유형",
+      "정비 기록: 보정 완료, 일시적 튐 1회 → 센서 고장 근거 부족",
+    ],
+    apply: withValues({ pressure: "10.4" }),
+  },
+  {
+    id: "p2",
+    title: "문제 2 · 이른 판단 시각 · 센서 의심 기록",
+    traps: [
+      "판단 시각 10:00 → 범위는 전날 10:00부터 → 압력 경고 4회로 기준 5회 미달",
+      "정비 기록은 센서 이상 정황이 있지만, 알람 반복이 아니므로 결론에 영향 없음",
+    ],
+    apply: compose(withValues({ evaluation_time: "2026-09-26 10:00" }), withNote("suspect")),
+  },
+  {
+    id: "p3",
+    title: "문제 3 · 기준과 같은 압력 · 많은 알람 · 센서 의심",
+    traps: ["압력 10.0 = 기준 → 초과가 아니므로 압력 이상 아님", "알람 반복과 센서 이상 정황이 있어도 결론에 영향 없음"],
+    apply: compose(withValues({ pressure: "10.0" }), withNote("suspect")),
+  },
+  {
+    id: "p4",
+    title: "문제 4 · 좁은 집계 범위 · 낮은 기준 · 센서 의심",
+    traps: [
+      "집계 범위 16시간 → 02:00 이후만 → 압력 경고 4회",
+      "알람 기준 4회 → 반복으로 봄",
+      "정비 기록에 센서 이상 정황 → 센서 점검",
+    ],
+    apply: compose(withSettings({ windowHours: 16, threshold: 4 }), withNote("suspect")),
   },
 ];
 
@@ -303,4 +357,5 @@ export const EQUIPMENT_SCENARIO: Scenario = {
   llmOnlyRole: "You decide the action for a piece of equipment by applying the given policy to the given data.",
   exampleDraft: EXAMPLE_DRAFT,
   missions: MISSIONS,
+  cases: CASES,
 };

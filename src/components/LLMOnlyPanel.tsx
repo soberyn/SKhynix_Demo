@@ -4,11 +4,20 @@ import { SourceTag } from "./bits";
 import s from "./demo.module.css";
 
 /** The "LLM 단독" tab, laid out like the "LLM + 규칙" tab: structure · final decision · process. */
-export function LLMOnlyPanel({ scenario, result, running }: { scenario: Scenario; result: LLMOnlyResult | null; running: boolean }) {
-  const ruleNodes = scenario
-    .buildGraph(scenario.defaultSettings)
-    .nodes.filter((n) => n.dependencies.length === 0)
-    .map((n) => n.label.replace(/\?$/, ""));
+export function LLMOnlyPanel({
+  scenario,
+  result,
+  running,
+  truth,
+}: {
+  scenario: Scenario;
+  result: LLMOnlyResult | null;
+  running: boolean;
+  truth?: { decision: string; nodes: Record<string, string> };
+}) {
+  const graph = scenario.buildGraph(scenario.defaultSettings);
+  const ruleNodes = graph.nodes.filter((n) => n.dependencies.length === 0).map((n) => n.label.replace(/\?$/, ""));
+  const steps = graph.nodes.filter((n) => n.id !== graph.decision_node);
   return (
     <div className={s.tabGrid}>
       <div className={s.tabCol}>
@@ -58,9 +67,27 @@ export function LLMOnlyPanel({ scenario, result, running }: { scenario: Scenario
         <h3 className={s.colTitle}>판단과정</h3>
         {result?.ok ? (
           <>
+            {result.checks && (
+              <>
+                <div className={s.divTitle}>LLM 단독이 보고한 단계별 판단</div>
+                <ul className={s.factList}>
+                  {steps.map((n) => {
+                    const v = result.checks?.[n.label];
+                    const c = truth?.nodes[n.id];
+                    return (
+                      <li key={n.id}>
+                        {n.label} <b>{v ?? "—"}</b>{" "}
+                        {c && v && (v === c ? <span className={s.okMark}>✓</span> : <span className={s.badMark}>✗ 정답 {c}</span>)}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className={s.divTitle}>LLM 단독의 설명</div>
+              </>
+            )}
             <p className={s.llmReason}>{result.reason}</p>
             <ul className={s.missingList}>
-              <li>단계별 추적 없음 — 어떤 조건을 확인했는지는 위 설명 문장 안에만 있습니다.</li>
+              <li>단계 판단은 LLM이 스스로 보고한 것일 뿐, 각 판단이 어떤 입력을 어떻게 계산했는지는 추적되지 않습니다.</li>
               <li>부분 수정 불가 — 판단 하나만 고치려 해도 전체를 다시 물어야 합니다.</li>
               <li>재사용 불가 — 입력 일부만 바뀌어도 전체를 다시 판단합니다.</li>
             </ul>

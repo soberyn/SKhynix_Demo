@@ -47,15 +47,22 @@ async function main() {
   await page.goto(`${BASE}/?s=tax&run=example`);
   await settle(page);
   await page.screenshot({ path: `${OUT}01-tax-overview.png` });
-  await page.locator('section[aria-label="LLM + 규칙"]').screenshot({ path: `${OUT}02-tax-llm-rules-tab.png` });
+
+  // A problem where LLM-only fails: comparison bar with the step table
+  await page.goto(`${BASE}/?s=tax&run=problem-p1`);
+  await settle(page);
+  await page.locator("[class*=rightArea] > [class*=compareWrap]").screenshot({ path: `${OUT}02-tax-problem1-steps.png` });
+  await page.screenshot({ path: `${OUT}03-tax-problem1-full.png` });
+  await page.locator('section[aria-label="LLM + 규칙"]').screenshot({ path: `${OUT}04-tax-llm-rules-tab.png` });
   await tab(page, "LLM 단독").click();
   await page.waitForTimeout(300);
-  await page.locator('section[aria-label="LLM 단독"]').screenshot({ path: `${OUT}03-tax-llm-only-tab.png` });
+  await page.locator('section[aria-label="LLM 단독"]').screenshot({ path: `${OUT}05-tax-llm-only-tab.png` });
 
-  await mission(page, "tax", "transfer-date", "04-tax-mission-transfer-date.png");
-  await mission(page, "tax", "override", "05-tax-mission-override.png");
-  await mission(page, "tax", "policy", "06-tax-mission-policy.png");
-  await mission(page, "tax", "note", "07-tax-mission-note.png");
+  // Accuracy over repeated runs
+  await page.locator("section[aria-labelledby=bench-h]").screenshot({ path: `${OUT}06-tax-benchmark.png` });
+
+  await mission(page, "tax", "transfer-date", "07-tax-mission-transfer-date.png");
+  await mission(page, "tax", "override", "08-tax-mission-override.png");
 
   // Failure example (tax)
   await page.goto(`${BASE}/?s=tax&run=failure`);
@@ -63,14 +70,13 @@ async function main() {
     timeout: 30_000,
   });
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${OUT}08-tax-failure-propagation.png` });
+  await page.screenshot({ path: `${OUT}09-tax-failure-propagation.png` });
 
   // Scenario 2 — equipment (another domain)
-  await page.goto(`${BASE}/?s=equipment&run=example`);
+  await page.goto(`${BASE}/?s=equipment&run=problem-p2`);
   await settle(page);
-  await page.screenshot({ path: `${OUT}09-equipment-overview.png` });
-  await mission(page, "equipment", "policy", "10-equipment-mission-policy.png");
-  await mission(page, "equipment", "override", "11-equipment-mission-override.png");
+  await page.screenshot({ path: `${OUT}10-equipment-problem2.png` });
+  await page.locator("section[aria-labelledby=bench-h]").screenshot({ path: `${OUT}11-equipment-benchmark.png` });
 
   // Structural comparison table
   await page.locator("section", { hasText: "두 방식의 구조 비교" }).screenshot({ path: `${OUT}12-comparison-table.png` });

@@ -50,6 +50,18 @@ export interface Mission {
   llmOnly: string;
 }
 
+/**
+ * A benchmark problem: a complete input in which several conditions interact.
+ * Its correct outcome (and the correct result of every step) follows from the rules and the prepared readings.
+ */
+export interface BenchCase {
+  id: string;
+  title: string;
+  /** The conditions that make the problem tricky, shown to the reader. */
+  traps: string[];
+  apply: (d: Draft) => Draft;
+}
+
 export interface Scenario {
   id: string;
   /** Short name for the scenario switcher. */
@@ -70,6 +82,8 @@ export interface Scenario {
   llmOnlyRole: string;
   exampleDraft: Draft;
   missions: Mission[];
+  /** Cases measured repeatedly against their correct outcome (see scripts/benchmark.ts). */
+  cases: BenchCase[];
 }
 
 // ---------- helpers shared by the UI, the API and the scripts ----------

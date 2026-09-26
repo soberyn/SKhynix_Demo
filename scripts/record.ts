@@ -54,6 +54,7 @@ function llmOnlyCases(sc: Scenario) {
   const cases = [
     { name: "example", draft: sc.exampleDraft },
     ...sc.missions.map((m) => ({ name: `mission: ${m.id}`, draft: m.apply(sc.exampleDraft).draft })),
+    ...sc.cases.map((c) => ({ name: `problem: ${c.id}`, draft: c.apply(sc.exampleDraft) })),
   ];
   const seen = new Set<string>();
   return cases
